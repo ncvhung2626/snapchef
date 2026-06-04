@@ -112,25 +112,22 @@ npx expo start -c
 
 ## Fix lỗi Gradle build failed (EAS_BUILD_UNKNOWN_GRADLE_ERROR)
 
-**Nguyên nhân:** Project có thư mục `android/` tạo từ `expo prebuild` local bị lỗi:
+**Nguyên nhân:** Project có thư mục native **lỗi** được commit:
 
-- Package Kotlin sai (`com.test2` ≠ `com.vaa.test2`)
-- Thiếu icon `@mipmap/ic_launcher`
+- `android/` (root) — package Kotlin sai
+- **`package/android/`** — template HelloWorld cũ (EAS vẫn phát hiện → Gradle fail)
 
-EAS ưu tiên `android/` đã commit thay vì tạo mới → Gradle fail.
+**Cách sửa:**
 
-**Cách sửa (đã áp dụng trong repo):**
-
-1. Thêm `/android` vào `.gitignore`
-2. Gỡ `android/` khỏi git (giữ file trên máy cũng được, EAS không upload nữa)
-3. Build lại — EAS tự `expo prebuild` trên cloud
+1. Gỡ `android/` và `package/` khỏi git
+2. Build lại — EAS tự `expo prebuild` trên cloud
 
 ```powershell
 cd "d:\Tài Liệu\VAA\HK6\LT Mobile\test 2"
-git rm -r --cached android
-git add .gitignore .easignore eas.json
-git commit -m "fix: remove broken android folder, let EAS prebuild on cloud"
+git rm -r --cached android package
+git add .gitignore .easignore SPRINT8_DEPLOY.md
+git commit -m "fix: remove package/android from git for EAS prebuild"
 npm run build:preview:android
 ```
 
-Log build: mở link **Run gradlew** trên [expo.dev/builds](https://expo.dev/accounts/pucser/projects/test-2/builds) nếu vẫn lỗi.
+Build **thành công** khi log **không còn** dòng *android directory was detected*.

@@ -3,9 +3,10 @@ node_modules/
 dist/
 web-build/
 
-# Native — EAS Build tự chạy prebuild trên cloud (tránh android/ lỗi local)
+# Native — EAS Build tự chạy prebuild trên cloud
 /android
 /ios
+/package
 
 .env
 .env.local
