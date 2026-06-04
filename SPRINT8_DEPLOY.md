@@ -105,4 +105,32 @@ npx expo start -c
 | Invalid supabaseUrl trên bản build | Thiếu `EXPO_PUBLIC_*` trên EAS → làm bước 3 |
 | `eas: command not found` | `npm install -g eas-cli` |
 | Chat không realtime trên APK | Supabase → Replication → bật `messages` (bạn đã làm) |
-| Đường dẫn Unicode khi prebuild local | Dùng **EAS Build trên cloud**, không cần `expo prebuild` local |
+| Gradle build failed / Run gradlew | Thư mục `android/` prebuild lỗi trên máy → xóa khỏi git, để EAS tự prebuild (xem mục dưới) |
+| Đường dẫn Unicode khi prebuild local | Dùng **EAS Build trên cloud**, không commit `android/` |
+
+---
+
+## Fix lỗi Gradle build failed (EAS_BUILD_UNKNOWN_GRADLE_ERROR)
+
+**Nguyên nhân:** Project có thư mục `android/` tạo từ `expo prebuild` local bị lỗi:
+
+- Package Kotlin sai (`com.test2` ≠ `com.vaa.test2`)
+- Thiếu icon `@mipmap/ic_launcher`
+
+EAS ưu tiên `android/` đã commit thay vì tạo mới → Gradle fail.
+
+**Cách sửa (đã áp dụng trong repo):**
+
+1. Thêm `/android` vào `.gitignore`
+2. Gỡ `android/` khỏi git (giữ file trên máy cũng được, EAS không upload nữa)
+3. Build lại — EAS tự `expo prebuild` trên cloud
+
+```powershell
+cd "d:\Tài Liệu\VAA\HK6\LT Mobile\test 2"
+git rm -r --cached android
+git add .gitignore .easignore eas.json
+git commit -m "fix: remove broken android folder, let EAS prebuild on cloud"
+npm run build:preview:android
+```
+
+Log build: mở link **Run gradlew** trên [expo.dev/builds](https://expo.dev/accounts/pucser/projects/test-2/builds) nếu vẫn lỗi.

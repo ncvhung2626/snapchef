@@ -1,0 +1,7 @@
+package/
+backend/
+node_modules/
+.expo/
+*.md
+fixbug.docx
+supabase/
