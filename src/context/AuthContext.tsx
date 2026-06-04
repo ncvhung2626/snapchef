@@ -1,0 +1,104 @@
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { User } from '../types/models';
+import * as authService from '../services/authService';
+import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+
+interface AuthContextValue {
+  user: User | null;
+  isLoading: boolean;
+  isBootstrapping: boolean;
+  isSupabaseReady: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (fullname: string, email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  setUser: (user: User | null) => void;
+}
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+
+  const logout = useCallback(async () => {
+    await authService.logout();
+    setUser(null);
+  }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setIsBootstrapping(false);
+      return;
+    }
+
+    authService.restoreSession().then(setUser).finally(() => setIsBootstrapping(false));
+
+    const supabase = getSupabase();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!session?.user) {
+        setUser(null);
+        return;
+      }
+      try {
+        const profile = await authService.getProfile();
+        setUser(profile);
+      } catch {
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      const { user: u } = await authService.login(email, password);
+      setUser(u);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const register = useCallback(async (fullname: string, email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      const { user: u } = await authService.register(fullname, email, password);
+      setUser(u);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    const u = await authService.getProfile();
+    setUser(u);
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      user,
+      isLoading,
+      isBootstrapping,
+      isSupabaseReady: isSupabaseConfigured,
+      login,
+      register,
+      logout,
+      refreshProfile,
+      setUser,
+    }),
+    [user, isLoading, isBootstrapping, login, register, logout, refreshProfile]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
+}
