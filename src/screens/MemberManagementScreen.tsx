@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useMemo, useCallback, useEffect, useState } from 'react';
+import { useTheme } from '../theme/ThemeContext';
 import {
   View,
   Text,
@@ -16,7 +17,6 @@ import type { GroupWithMembership } from '../services/groupService';
 import * as groupService from '../services/groupService';
 import type { GroupMember } from '../services/groupService';
 import { useAuth } from '../context/AuthContext';
-import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
@@ -25,6 +25,8 @@ export const MemberManagementScreen = ({
   navigation,
   route,
 }: RootStackScreenProps<'MemberManagement'>) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { groupId } = route.params;
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -47,6 +49,14 @@ export const MemberManagementScreen = ({
   }, [load]);
 
   const canManage = groupService.canManageGroup(group, user?._id);
+
+  useEffect(() => {
+    if (!loading && group && !canManage) {
+      Alert.alert('Không có quyền', 'Chỉ quản trị viên nhóm mới truy cập được trang này', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    }
+  }, [loading, group, canManage, navigation]);
 
   const removeMember = (memberId: string) => {
     if (!user) return;
@@ -119,7 +129,8 @@ export const MemberManagementScreen = ({
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -152,3 +163,4 @@ const styles = StyleSheet.create({
   name: { ...typography.bodyLg, fontWeight: '600', color: colors.onSurface },
   role: { ...typography.bodyMd, color: colors.onSurfaceVariant },
 });
+}

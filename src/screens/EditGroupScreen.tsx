@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { useTheme } from '../theme/ThemeContext';
 import {
   View,
@@ -10,26 +10,57 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Feather } from '@expo/vector-icons';
+import type { RootStackScreenProps } from '../types/navigation';
 import { useAuth } from '../context/AuthContext';
-import { createGroup } from '../services/groupService';
+import { getGroupById, updateGroup, canManageGroup } from '../services/groupService';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
 
-export const CreateGroupScreen = ({ navigation }: any) => {
+export const EditGroupScreen = ({ navigation, route }: RootStackScreenProps<'EditGroup'>) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { groupId } = route.params;
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [groupName, setGroupName] = useState('');
   const [description, setDescription] = useState('');
   const [privacy, setPrivacy] = useState<'public' | 'private'>('public');
+  const [memberCanPost, setMemberCanPost] = useState(true);
+  const [memberCanInvite, setMemberCanInvite] = useState(true);
   const [coverUri, setCoverUri] = useState<string | null>(null);
+  const [existingCover, setExistingCover] = useState<string | undefined>();
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const group = await getGroupById(groupId, user?._id);
+        if (!group || !canManageGroup(group, user?._id)) {
+          Alert.alert('Lỗi', 'Bạn không có quyền chỉnh sửa nhóm', [
+            { text: 'OK', onPress: () => navigation.goBack() },
+          ]);
+          return;
+        }
+        setGroupName(group.name);
+        setDescription(group.description);
+        setPrivacy(group.privacy ?? 'public');
+        setMemberCanPost(group.memberCanPost ?? true);
+        setMemberCanInvite(group.memberCanInvite ?? true);
+        setExistingCover(group.coverImage);
+      } catch (err) {
+        Alert.alert('Lỗi', err instanceof Error ? err.message : 'Không tải được nhóm');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [groupId, user?._id, navigation]);
 
   const pickCover = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -48,7 +79,7 @@ export const CreateGroupScreen = ({ navigation }: any) => {
     }
   };
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!user) return;
     if (!groupName.trim()) {
       Alert.alert('Lỗi', 'Nhập tên nhóm');
@@ -56,25 +87,33 @@ export const CreateGroupScreen = ({ navigation }: any) => {
     }
     setSubmitting(true);
     try {
-      const group = await createGroup(user._id, {
+      await updateGroup(groupId, user._id, {
         name: groupName,
         description,
         privacy,
         coverImageUri: coverUri ?? undefined,
+        memberCanPost,
+        memberCanInvite,
       });
-      Alert.alert('Thành công', 'Đã tạo nhóm', [
-        {
-          text: 'OK',
-          onPress: () =>
-            navigation.replace('GroupDetail', { groupId: group._id }),
-        },
+      Alert.alert('Thành công', 'Đã cập nhật nhóm', [
+        { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (e) {
-      Alert.alert('Lỗi', e instanceof Error ? e.message : 'Không tạo được nhóm');
+      Alert.alert('Lỗi', e instanceof Error ? e.message : 'Không cập nhật được nhóm');
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  const displayCover = coverUri ?? existingCover;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -83,25 +122,25 @@ export const CreateGroupScreen = ({ navigation }: any) => {
           <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
             <Feather name="arrow-left" size={24} color={colors.primary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Tạo Nhóm Mới</Text>
+          <Text style={styles.headerTitle}>Chỉnh sửa nhóm</Text>
         </View>
-        <TouchableOpacity style={styles.startBtn} onPress={handleCreate} disabled={submitting}>
+        <TouchableOpacity style={styles.startBtn} onPress={handleSave} disabled={submitting}>
           {submitting ? (
             <ActivityIndicator color={colors.primary} size="small" />
           ) : (
-            <Text style={styles.startBtnText}>Bắt đầu tạo</Text>
+            <Text style={styles.startBtnText}>Lưu</Text>
           )}
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <TouchableOpacity style={styles.uploadContainer} onPress={pickCover}>
-          {coverUri ? (
-            <Image source={{ uri: coverUri }} style={styles.coverPreview} />
+          {displayCover ? (
+            <Image source={{ uri: displayCover }} style={styles.coverPreview} />
           ) : (
             <View style={styles.uploadContent}>
               <Feather name="camera" size={32} color={colors.primary} />
-              <Text style={styles.uploadText}>Tải lên ảnh bìa nhóm</Text>
+              <Text style={styles.uploadText}>Đổi ảnh bìa nhóm</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -110,7 +149,7 @@ export const CreateGroupScreen = ({ navigation }: any) => {
           <Text style={styles.label}>Tên nhóm</Text>
           <TextInput
             style={styles.input}
-            placeholder="Nhập tên nhóm của bạn..."
+            placeholder="Nhập tên nhóm..."
             placeholderTextColor={colors.onSurfaceVariant}
             value={groupName}
             onChangeText={setGroupName}
@@ -121,7 +160,7 @@ export const CreateGroupScreen = ({ navigation }: any) => {
           <Text style={styles.label}>Mô tả nhóm</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
-            placeholder="Chia sẻ mục tiêu và niềm đam mê nấu nướng của nhóm..."
+            placeholder="Mô tả nhóm..."
             placeholderTextColor={colors.onSurfaceVariant}
             multiline
             numberOfLines={4}
@@ -154,6 +193,24 @@ export const CreateGroupScreen = ({ navigation }: any) => {
             <Text style={styles.privacyDesc}>Chỉ thành viên mới thấy bài viết trong nhóm.</Text>
           </View>
         </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>Quyền thành viên</Text>
+
+        <View style={styles.permissionRow}>
+          <View style={styles.permissionText}>
+            <Text style={styles.privacyTitle}>Thành viên được đăng bài</Text>
+            <Text style={styles.privacyDesc}>Khi tắt, chỉ admin/chủ nhóm mới đăng được.</Text>
+          </View>
+          <Switch value={memberCanPost} onValueChange={setMemberCanPost} trackColor={{ true: colors.primary }} />
+        </View>
+
+        <View style={styles.permissionRow}>
+          <View style={styles.permissionText}>
+            <Text style={styles.privacyTitle}>Thành viên mời người khác</Text>
+            <Text style={styles.privacyDesc}>Cho phép thành viên chia sẻ link nhóm.</Text>
+          </View>
+          <Switch value={memberCanInvite} onValueChange={setMemberCanInvite} trackColor={{ true: colors.primary }} />
+        </View>
       </ScrollView>
     </View>
   );
@@ -162,6 +219,7 @@ export const CreateGroupScreen = ({ navigation }: any) => {
 function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  centered: { alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -173,7 +231,7 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
   iconBtn: { padding: spacing.xs },
   headerTitle: { ...typography.headlineMd, color: colors.primary, marginLeft: spacing.xs },
-  startBtn: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, minWidth: 90, alignItems: 'center' },
+  startBtn: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, minWidth: 60, alignItems: 'center' },
   startBtnText: { ...typography.labelMd, color: colors.primary, fontWeight: 'bold' },
   content: { padding: spacing.lg, paddingBottom: spacing['3xl'] },
   uploadContainer: {
@@ -222,5 +280,15 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   privacyTextContainer: { flex: 1 },
   privacyTitle: { ...typography.headlineMd, fontSize: 16, color: colors.onSurface, marginBottom: 4 },
   privacyDesc: { ...typography.bodyMd, color: colors.onSurfaceVariant },
+  permissionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    gap: spacing.md,
+  },
+  permissionText: { flex: 1 },
 });
 }

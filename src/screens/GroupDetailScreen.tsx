@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useMemo, useCallback, useEffect, useState } from 'react';
+import { useTheme } from '../theme/ThemeContext';
 import {
   View,
   Text,
@@ -13,33 +14,59 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { PostCard } from '../components/PostCard';
+import { ContentTabs } from '../components/ContentTabs';
+import { EmptyState, ErrorState } from '../components/StateViews';
 import { useAuth } from '../context/AuthContext';
 import * as groupService from '../services/groupService';
 import type { GroupWithMembership } from '../services/groupService';
+import { getOrCreateGroupConversation } from '../services/chatService';
 import { getPostsByGroupId, toggleLike } from '../services/postService';
 import type { Post } from '../types/models';
 import { formatRelativeTime } from '../utils/formatTime';
-import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
 
 export const GroupDetailScreen = ({ navigation, route }: any) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const groupId = route.params?.groupId as string;
   const { user } = useAuth();
   const [group, setGroup] = useState<GroupWithMembership | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
+  const [openingChat, setOpeningChat] = useState(false);
+  const [activeTab, setActiveTab] = useState('posts');
+  const [refreshing, setRefreshing] = useState(false);
+  const [members, setMembers] = useState<Awaited<ReturnType<typeof groupService.getGroupMembers>>>([]);
+
+  const GROUP_TABS = [
+    { key: 'posts', label: 'Bài viết' },
+    { key: 'reels', label: 'Reels' },
+    { key: 'members', label: 'Thành viên' },
+    { key: 'about', label: 'Giới thiệu' },
+  ];
 
   const load = useCallback(async () => {
-    const [g, p] = await Promise.all([
-      groupService.getGroupById(groupId, user?._id),
-      getPostsByGroupId(groupId, user?._id),
-    ]);
-    setGroup(g ?? null);
-    setPosts(p);
+    setError(null);
+    try {
+      const [g, p, m] = await Promise.all([
+        groupService.getGroupById(groupId, user?._id),
+        getPostsByGroupId(groupId, user?._id),
+        groupService.getGroupMembers(groupId).catch(() => []),
+      ]);
+      setGroup(g ?? null);
+      setPosts(p);
+      setMembers(m);
+      if (!g) setError('Không tìm thấy nhóm hoặc bạn không có quyền xem.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Không tải được nhóm');
+      setGroup(null);
+      setPosts([]);
+    }
   }, [groupId, user?._id]);
 
   useEffect(() => {
@@ -83,7 +110,11 @@ export const GroupDetailScreen = ({ navigation, route }: any) => {
     }
   };
 
-  const isAdmin = groupService.canManageGroup(group, user?._id);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
 
   if (loading && !group) {
     return (
@@ -96,13 +127,91 @@ export const GroupDetailScreen = ({ navigation, route }: any) => {
   if (!group) {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
-        <Text style={styles.emptyText}>Không tìm thấy nhóm</Text>
+        <Text style={styles.emptyText}>{error ?? 'Không tìm thấy nhóm'}</Text>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.linkText}>Quay lại</Text>
         </TouchableOpacity>
       </View>
     );
   }
+
+  const handleOpenChat = async () => {
+    if (!user || !group.isMember) return;
+    setOpeningChat(true);
+    try {
+      const convo = await getOrCreateGroupConversation(groupId, user._id);
+      navigation.navigate('Chat', {
+        conversationId: convo._id,
+        title: convo.groupTitle ?? group.name,
+        isGroupChat: true,
+      });
+    } catch (e) {
+      Alert.alert('Lỗi', e instanceof Error ? e.message : 'Không mở được chat nhóm');
+    } finally {
+      setOpeningChat(false);
+    }
+  };
+
+  const isAdmin = groupService.canManageGroup(group, user?._id);
+  const listData = activeTab === 'posts' ? posts : [];
+
+  const renderTabBody = () => {
+    if (activeTab === 'reels') {
+      return <EmptyState icon="film" title="Reels nhóm" message="Reels trong nhóm sẽ hiển thị tại đây." />;
+    }
+    if (activeTab === 'members') {
+      const roleLabel = (role: string) => {
+        if (role === 'owner') return 'Chủ nhóm';
+        if (role === 'admin') return 'Quản trị viên';
+        return 'Thành viên';
+      };
+      return (
+        <View style={styles.membersSection}>
+          <Text style={styles.membersTitle}>Thành viên ({members.length || (group.membersCount ?? 0)})</Text>
+          {members.map((m) => (
+            <TouchableOpacity
+              key={m.userId}
+              style={styles.memberRow}
+              onPress={() => navigation.navigate('UserProfile', { userId: m.userId })}
+            >
+              {m.avatar ? (
+                <Image source={{ uri: m.avatar }} style={styles.memberAvatar} />
+              ) : (
+                <View style={[styles.memberAvatar, styles.memberAvatarPh]}>
+                  <Feather name="user" size={16} color={colors.onSurfaceVariant} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.memberName}>{m.fullname}</Text>
+                <Text style={styles.memberRole}>{roleLabel(m.role)}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+          {group.isMember && isAdmin && (
+            <TouchableOpacity
+              style={styles.inviteBtn}
+              onPress={() => navigation.navigate('Friends', { userId: user?._id })}
+            >
+              <Feather name="user-plus" size={18} color={colors.onPrimary} />
+              <Text style={styles.inviteText}>Mời thành viên</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+    if (activeTab === 'about') {
+      return (
+        <View style={styles.aboutSection}>
+          <Text style={styles.aboutTitle}>Giới thiệu</Text>
+          <Text style={styles.description}>{group.description || 'Nhóm chưa có mô tả.'}</Text>
+          <Text style={styles.privacyText}>
+            {group.privacy === 'private' ? '🔒 Nhóm riêng tư' : '🌐 Nhóm công khai'}
+          </Text>
+        </View>
+      );
+    }
+    return null;
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -118,34 +227,43 @@ export const GroupDetailScreen = ({ navigation, route }: any) => {
         {isAdmin && (
           <TouchableOpacity
             style={styles.headerIcon}
-            onPress={() => navigation.navigate('PostManagement', { groupId })}
+            onPress={() => navigation.navigate('EditGroup', { groupId })}
           >
-            <Feather name="settings" size={22} color={colors.onSurfaceVariant} />
+            <Feather name="edit-2" size={22} color={colors.onSurfaceVariant} />
           </TouchableOpacity>
         )}
       </View>
 
       <FlatList
-        data={posts}
+        data={listData}
         keyExtractor={(item) => item._id}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
         renderItem={({ item }) => (
           <PostCard
             postId={item._id}
             author={item.author.fullname}
+            authorId={item.author._id}
             authorAvatar={item.author.avatar}
+            authorRole={item.author.role}
             time={formatRelativeTime(item.createdAt)}
+            title={item.title}
             content={item.content}
+            hashtags={item.hashtags}
             imageUrl={item.images[0]}
             likesCount={item.likes.length}
             commentsCount={item.commentsCount}
+            sharesCount={item.shares}
             isLiked={user ? item.likes.includes(user._id) : false}
             onLike={() => handleLike(item._id)}
           />
         )}
         ListEmptyComponent={
-          <Text style={styles.emptyPosts}>
-            {group.isMember ? 'Chưa có bài trong nhóm. Hãy đăng bài đầu tiên!' : 'Tham gia nhóm để xem và đăng bài.'}
-          </Text>
+          activeTab === 'posts' ? (
+            <Text style={styles.emptyPosts}>
+              {group.isMember ? 'Chưa có bài trong nhóm. Hãy đăng bài đầu tiên!' : 'Tham gia nhóm để xem và đăng bài.'}
+            </Text>
+          ) : null
         }
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={() => (
@@ -218,11 +336,37 @@ export const GroupDetailScreen = ({ navigation, route }: any) => {
                     <Feather name="users" size={14} color={colors.primary} />
                     <Text style={styles.adminChipText}>Quản lý thành viên</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.adminChip}
+                    onPress={() => navigation.navigate('PostManagement', { groupId })}
+                  >
+                    <Feather name="settings" size={14} color={colors.primary} />
+                    <Text style={styles.adminChipText}>Quản lý bài viết</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.adminChip}
+                    onPress={() => navigation.navigate('EditGroup', { groupId })}
+                  >
+                    <Feather name="edit-2" size={14} color={colors.primary} />
+                    <Text style={styles.adminChipText}>Chỉnh sửa nhóm</Text>
+                  </TouchableOpacity>
                 </View>
+              )}
+              {group.isMember && (
+                <TouchableOpacity style={styles.chatBtn} onPress={handleOpenChat} disabled={openingChat}>
+                  {openingChat ? (
+                    <ActivityIndicator size="small" color={colors.onPrimary} />
+                  ) : (
+                    <>
+                      <Feather name="message-circle" size={18} color={colors.onPrimary} />
+                      <Text style={styles.chatBtnText}>Chat nhóm</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               )}
             </View>
 
-            {group.isMember && (
+            {group.isMember && (group.memberCanPost !== false || isAdmin) && (
               <View style={styles.createPostContainer}>
                 <TouchableOpacity
                   style={styles.createPostInput}
@@ -237,6 +381,9 @@ export const GroupDetailScreen = ({ navigation, route }: any) => {
                 </TouchableOpacity>
               </View>
             )}
+
+            <ContentTabs tabs={GROUP_TABS} active={activeTab} onChange={setActiveTab} />
+            {renderTabBody()}
           </View>
         )}
       />
@@ -244,7 +391,8 @@ export const GroupDetailScreen = ({ navigation, route }: any) => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { alignItems: 'center', justifyContent: 'center' },
   emptyText: { ...typography.bodyLg, color: colors.onSurfaceVariant },
@@ -333,6 +481,17 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   adminChipText: { ...typography.labelMd, color: colors.onPrimaryFixedVariant },
+  chatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+  },
+  chatBtnText: { ...typography.labelMd, color: colors.onPrimary },
   createPostContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -357,4 +516,45 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     margin: spacing.xl,
   },
+  membersSection: { padding: spacing.lg },
+  membersTitle: { ...typography.headlineMd, color: colors.onSurface, marginBottom: spacing.md },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant,
+  },
+  memberAvatar: { width: 40, height: 40, borderRadius: 20 },
+  memberAvatarPh: {
+    backgroundColor: colors.surfaceContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memberName: { ...typography.bodyMd, color: colors.onSurface, fontWeight: '600' },
+  memberRole: { ...typography.labelMd, color: colors.onSurfaceVariant },
+  inviteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+  },
+  inviteText: { ...typography.labelMd, color: colors.onPrimary, fontWeight: '700' },
+  roleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outlineVariant,
+  },
+  roleLabel: { ...typography.bodyMd, color: colors.onSurface },
+  aboutSection: { padding: spacing.lg },
+  aboutTitle: { ...typography.headlineMd, color: colors.onSurface, marginBottom: spacing.sm },
 });
+}
