@@ -1,21 +1,22 @@
 -- =============================================================================
--- SnapChef — Development seed (schema-validated)
--- Live Supabase schema (information_schema verified 2026-06).
--- See supabase/SCHEMA_AUDIT.md — posts.like_count/comment_count/share_count required;
--- reels has NO updated_at; saved_posts/saved_recipes optional.
+-- SnapChef — Development seed (profile-backed, schema-validated)
 --
--- Prerequisite: schema.sql → sprint2–13 → production/01–06 (full stack).
+-- Prerequisite:
+--   • Full schema applied (see SCHEMA_AUDIT.md)
+--   • At least 1 row in public.profiles (register users via the app first)
+--
+-- Rules:
+--   • NO fake user/profile UUIDs — all user FKs come from public.profiles
+--   • NO auth.users inserts
+--   • Deterministic content IDs via _demo_uuid (posts, groups, reels, …)
+--   • Idempotent: ON CONFLICT DO NOTHING / DO UPDATE
+--
 -- Run in Supabase SQL Editor (postgres / service role bypasses RLS).
---
--- Demo login: demo1@snapchef.app … demo15@snapchef.app
--- Password (all): Demo@12345
---
--- Idempotent: fixed UUIDs + ON CONFLICT DO NOTHING / DO UPDATE.
--- Only columns documented in SCHEMA_AUDIT.md are referenced.
 -- =============================================================================
 
 create extension if not exists pgcrypto with schema extensions;
 
+-- Deterministic UUID for non-user entities (posts, groups, comments, …)
 create or replace function public._demo_uuid(p_prefix text, p_index int)
 returns uuid
 language sql
@@ -28,17 +29,27 @@ as $$
   )::uuid;
 $$;
 
+-- Pick profile id by 1-based index (wraps around profile array)
+create or replace function public._seed_pick_profile(p_ids uuid[], p_index int)
+returns uuid
+language sql
+immutable
+as $$
+  select p_ids[1 + ((greatest(p_index, 1) - 1) % array_length(p_ids, 1))];
+$$;
+
 create or replace function public.seed_snapchef_dev_data()
 returns void
 language plpgsql
 security definer
-set search_path = public, auth, extensions
+set search_path = public, extensions
 as $$
 declare
-  v_instance_id uuid;
+  v_profile_ids uuid[];
+  v_n int;
   v_now timestamptz := now();
   v_i int;
-  v_user_id uuid;
+  v_author_id uuid;
   v_post_id uuid;
   v_group_id uuid;
   v_owner_id uuid;
@@ -46,51 +57,6 @@ declare
   v_following_id uuid;
   v_sender_id uuid;
   v_receiver_id uuid;
-  v_pwd text;
-  v_names text[] := array[
-    'Lan Nguyễn', 'Minh Trần', 'Hương Lê', 'Đức Phạm', 'Thảo Võ',
-    'Quỳnh Đặng', 'Hải Huỳnh', 'Anh Bùi', 'Chi Ngô', 'Bảo Đinh',
-    'SnapChef Admin', 'Mod Kiểm Duyệt', 'Photo Foodie', 'Travel Eats', 'Fish VAA'
-  ];
-  v_bios text[] := array[
-    'Đầu bếp gia đình | Món Việt mỗi ngày',
-    'Food blogger Sài Gòn | Street food',
-    'Eat clean & meal prep',
-    'Nghiện phở & cà phê sáng',
-    'Công thức nhanh cho người bận',
-    'Bánh ngọt homemade',
-    'Ẩm thực Huế',
-    'BBQ & grill master',
-    'Trà sữa & dessert',
-    'Vegan-friendly recipes',
-    'Quản trị SnapChef',
-    'Kiểm duyệt nội dung',
-    'Nhiếp ảnh món ăn',
-    'Du lịch ẩm thực ĐNÁ',
-    'Học viên VAA'
-  ];
-  v_avatars text[] := array[
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
-    'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200',
-    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200',
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200',
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200',
-    'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200',
-    'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=200',
-    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200',
-    'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200',
-    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200',
-    'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200',
-    'https://images.unsplash.com/photo-1599566150163-291fa0b0d631?w=200',
-    'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=200'
-  ];
-  v_roles text[] := array[
-    'user','user','user','user','user',
-    'user','user','user','user','user',
-    'admin','moderator','user','user','user'
-  ];
   v_feed_contents text[] := array[
     'Phở bò Hà Nội nóng hổi — nước dùng ninh 6 tiếng #phobo',
     'Bún bò Huế chuẩn vị cố đô #bunbo #hue',
@@ -152,76 +118,33 @@ declare
   v_video text := 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
   v_thumb text := 'https://images.unsplash.com/photo-1591814468924-caf87d1282aa?w=600';
 begin
-  select coalesce(
-    (select id from auth.instances limit 1),
-    '00000000-0000-0000-0000-000000000000'::uuid
-  ) into v_instance_id;
+  -- ---------------------------------------------------------------------------
+  -- Load real profile IDs (oldest first, max 15)
+  -- ---------------------------------------------------------------------------
+  select coalesce(array_agg(id order by created_at asc), '{}'::uuid[])
+  into v_profile_ids
+  from (
+    select p.id, p.created_at
+    from public.profiles p
+    order by p.created_at asc
+    limit 15
+  ) s;
 
-  v_pwd := extensions.crypt('Demo@12345', extensions.gen_salt('bf'));
+  v_n := coalesce(array_length(v_profile_ids, 1), 0);
+
+  if v_n < 1 then
+    raise exception
+      'seed_snapchef_dev_data: no profiles found. Register at least one user in the app, then re-run.';
+  end if;
+
+  raise notice 'seed_snapchef_dev_data: using % profile(s) from public.profiles', v_n;
 
   -- ---------------------------------------------------------------------------
-  -- 1. auth.users + auth.identities + profiles
-  -- profiles columns: id, fullname, email, avatar, bio, role, username,
-  --                  created_at, updated_at
-  -- ---------------------------------------------------------------------------
-  for v_i in 1..15 loop
-    v_user_id := public._demo_uuid('a0000000', v_i);
-
-    insert into auth.users (
-      instance_id, id, aud, role, email, encrypted_password,
-      email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
-      created_at, updated_at,
-      confirmation_token, recovery_token, email_change_token_new, email_change
-    ) values (
-      v_instance_id, v_user_id, 'authenticated', 'authenticated',
-      'demo' || v_i || '@snapchef.app', v_pwd, v_now,
-      '{"provider":"email","providers":["email"]}'::jsonb,
-      jsonb_build_object('fullname', v_names[v_i]),
-      v_now, v_now, '', '', '', ''
-    )
-    on conflict (id) do update set
-      email = excluded.email,
-      encrypted_password = excluded.encrypted_password,
-      raw_user_meta_data = excluded.raw_user_meta_data,
-      updated_at = v_now;
-
-    insert into auth.identities (
-      id, provider_id, user_id, identity_data, provider,
-      last_sign_in_at, created_at, updated_at
-    ) values (
-      v_user_id, v_user_id::text, v_user_id,
-      jsonb_build_object(
-        'sub', v_user_id::text,
-        'email', 'demo' || v_i || '@snapchef.app',
-        'email_verified', true,
-        'phone_verified', false
-      ),
-      'email', v_now, v_now, v_now
-    )
-    on conflict (id) do nothing;
-
-    insert into public.profiles (
-      id, fullname, email, avatar, bio, role, username, created_at, updated_at
-    ) values (
-      v_user_id, v_names[v_i], 'demo' || v_i || '@snapchef.app',
-      v_avatars[v_i], v_bios[v_i], v_roles[v_i], 'demo_user_' || v_i,
-      v_now - (v_i || ' days')::interval, v_now
-    )
-    on conflict (id) do update set
-      fullname = excluded.fullname,
-      avatar = excluded.avatar,
-      bio = excluded.bio,
-      role = excluded.role,
-      username = excluded.username,
-      updated_at = v_now;
-  end loop;
-
-  -- ---------------------------------------------------------------------------
-  -- 2. groups + group_members
+  -- 1. groups + group_members (owner_id / user_id = real profiles)
   -- ---------------------------------------------------------------------------
   for v_i in 1..10 loop
     v_group_id := public._demo_uuid('d0000000', v_i);
-    v_owner_id := public._demo_uuid('a0000000', 1 + ((v_i - 1) % 15));
+    v_owner_id := public._seed_pick_profile(v_profile_ids, v_i);
 
     insert into public.groups (
       id, name, description, cover_image, avatar_url, owner_id,
@@ -248,26 +171,28 @@ begin
     insert into public.group_members (id, group_id, user_id, role, joined_at)
     values (
       public._demo_uuid('db000000', v_i * 10 + 1), v_group_id,
-      public._demo_uuid('a0000000', 1 + (v_i % 15)), 'member',
+      public._seed_pick_profile(v_profile_ids, v_i + 1), 'member',
       v_now - (v_i || ' days')::interval
     )
     on conflict (group_id, user_id) do nothing;
 
-    insert into public.group_members (id, group_id, user_id, role, joined_at)
-    values (
-      public._demo_uuid('db000000', v_i * 10 + 2), v_group_id,
-      public._demo_uuid('a0000000', 1 + ((v_i + 5) % 15)),
-      case when v_i % 3 = 0 then 'admin' else 'member' end,
-      v_now - ((v_i + 1) || ' days')::interval
-    )
-    on conflict (group_id, user_id) do nothing;
+    if v_n >= 2 then
+      insert into public.group_members (id, group_id, user_id, role, joined_at)
+      values (
+        public._demo_uuid('db000000', v_i * 10 + 2), v_group_id,
+        public._seed_pick_profile(v_profile_ids, v_i + 5),
+        case when v_i % 3 = 0 then 'admin' else 'member' end,
+        v_now - ((v_i + 1) || ' days')::interval
+      )
+      on conflict (group_id, user_id) do nothing;
+    end if;
   end loop;
 
   -- ---------------------------------------------------------------------------
-  -- 3. feed posts (30)
+  -- 2. feed posts (30)
   -- ---------------------------------------------------------------------------
   for v_i in 1..30 loop
-    v_user_id := public._demo_uuid('a0000000', 1 + ((v_i - 1) % 15));
+    v_author_id := public._seed_pick_profile(v_profile_ids, v_i);
     v_group_id := case
       when v_i % 5 = 0 then public._demo_uuid('d0000000', 1 + ((v_i / 5) % 10))
       else null
@@ -279,7 +204,7 @@ begin
       like_count, comment_count, share_count,
       created_at, updated_at
     ) values (
-      public._demo_uuid('b0000000', v_i), v_user_id, v_feed_contents[v_i],
+      public._demo_uuid('feed0000', v_i), v_author_id, v_feed_contents[v_i],
       array[v_img]::text[], '{}'::text[],
       case when v_group_id is not null then 'group' else 'public' end,
       v_group_id, null, 'general', '[]'::jsonb, '[]'::jsonb, null,
@@ -290,10 +215,10 @@ begin
   end loop;
 
   -- ---------------------------------------------------------------------------
-  -- 4. recipe posts (20)
+  -- 3. recipe posts (20)
   -- ---------------------------------------------------------------------------
   for v_i in 1..20 loop
-    v_user_id := public._demo_uuid('a0000000', 1 + ((v_i + 2) % 15));
+    v_author_id := public._seed_pick_profile(v_profile_ids, v_i + 2);
 
     insert into public.posts (
       id, author_id, content, images, videos, visibility, group_id,
@@ -301,7 +226,7 @@ begin
       like_count, comment_count, share_count,
       created_at, updated_at
     ) values (
-      public._demo_uuid('c0000000', v_i), v_user_id,
+      public._demo_uuid('recipe00', v_i), v_author_id,
       'Công thức chi tiết: ' || v_recipe_titles[v_i] || '. Chia sẻ từ cộng đồng SnapChef.',
       array[v_recipe_img]::text[], '{}'::text[], 'public', null,
       v_recipe_titles[v_i],
@@ -321,7 +246,7 @@ begin
   end loop;
 
   -- ---------------------------------------------------------------------------
-  -- 5. reels
+  -- 4. reels (15)
   -- ---------------------------------------------------------------------------
   for v_i in 1..15 loop
     insert into public.reels (
@@ -329,7 +254,7 @@ begin
       duration_seconds, view_count, created_at
     ) values (
       public._demo_uuid('e0000000', v_i),
-      public._demo_uuid('a0000000', 1 + ((v_i - 1) % 15)),
+      public._seed_pick_profile(v_profile_ids, v_i),
       v_video, v_thumb, v_feed_contents[v_i],
       30 + v_i * 2, 500 + v_i * 120,
       v_now - (v_i * 5 || ' hours')::interval
@@ -338,20 +263,20 @@ begin
   end loop;
 
   -- ---------------------------------------------------------------------------
-  -- 6. comments (50 top-level) — uses parent_comment_id (app column)
+  -- 5. comments — top-level (50)
   -- ---------------------------------------------------------------------------
   for v_i in 1..50 loop
     if v_i <= 30 then
-      v_post_id := public._demo_uuid('b0000000', 1 + ((v_i - 1) % 30));
+      v_post_id := public._demo_uuid('feed0000', 1 + ((v_i - 1) % 30));
     else
-      v_post_id := public._demo_uuid('c0000000', 1 + ((v_i - 31) % 20));
+      v_post_id := public._demo_uuid('recipe00', 1 + ((v_i - 31) % 20));
     end if;
 
     insert into public.comments (
       id, post_id, user_id, content, parent_comment_id, created_at
     ) values (
       public._demo_uuid('f0000000', v_i), v_post_id,
-      public._demo_uuid('a0000000', 1 + ((v_i + 3) % 15)),
+      public._seed_pick_profile(v_profile_ids, v_i + 3),
       case v_i % 5
         when 0 then 'Ngon quá! Sẽ thử cuối tuần này.'
         when 1 then 'Công thức rất chi tiết, cảm ơn bạn.'
@@ -366,7 +291,7 @@ begin
   end loop;
 
   -- ---------------------------------------------------------------------------
-  -- 7. comment replies (20) — parent_comment_id only
+  -- 6. comment replies (20)
   -- ---------------------------------------------------------------------------
   for v_i in 1..20 loop
     insert into public.comments (
@@ -375,7 +300,7 @@ begin
       public._demo_uuid('f1000000', v_i),
       (select c.post_id from public.comments c
        where c.id = public._demo_uuid('f0000000', 1 + ((v_i - 1) % 50))),
-      public._demo_uuid('a0000000', 1 + ((v_i + 5) % 15)),
+      public._seed_pick_profile(v_profile_ids, v_i + 5),
       case v_i % 4
         when 0 then 'Đúng rồi, mình cũng làm vậy!'
         when 1 then 'Cảm ơn bạn, mình sẽ thử.'
@@ -389,39 +314,39 @@ begin
   end loop;
 
   -- ---------------------------------------------------------------------------
-  -- 8. post_likes (100)
+  -- 7. post_likes (100)
   -- ---------------------------------------------------------------------------
   for v_i in 1..100 loop
     if (1 + ((v_i - 1) % 50)) <= 30 then
-      v_post_id := public._demo_uuid('b0000000', 1 + ((v_i - 1) % 30));
+      v_post_id := public._demo_uuid('feed0000', 1 + ((v_i - 1) % 30));
     else
-      v_post_id := public._demo_uuid('c0000000', 1 + (((v_i - 1) % 50) - 30));
+      v_post_id := public._demo_uuid('recipe00', 1 + (((v_i - 1) % 50) - 30));
     end if;
 
     insert into public.post_likes (id, post_id, user_id, created_at)
     values (
       public._demo_uuid('10000000', v_i), v_post_id,
-      public._demo_uuid('a0000000', 1 + ((v_i + 7) % 15)),
+      public._seed_pick_profile(v_profile_ids, v_i + 7),
       v_now - (v_i || ' hours')::interval
     )
     on conflict (post_id, user_id) do nothing;
   end loop;
 
   -- ---------------------------------------------------------------------------
-  -- 9. reel_likes (30) — composite PK (reel_id, user_id), no id column
+  -- 8. reel_likes (30)
   -- ---------------------------------------------------------------------------
   for v_i in 1..30 loop
     insert into public.reel_likes (reel_id, user_id, created_at)
     values (
       public._demo_uuid('e0000000', 1 + ((v_i - 1) % 15)),
-      public._demo_uuid('a0000000', 1 + ((v_i + 3) % 15)),
+      public._seed_pick_profile(v_profile_ids, v_i + 3),
       v_now - (v_i || ' hours')::interval
     )
     on conflict (reel_id, user_id) do nothing;
   end loop;
 
   -- ---------------------------------------------------------------------------
-  -- 10. reel_comments (25 top-level) — no updated_at column
+  -- 9. reel_comments (25)
   -- ---------------------------------------------------------------------------
   for v_i in 1..25 loop
     insert into public.reel_comments (
@@ -429,7 +354,7 @@ begin
     ) values (
       public._demo_uuid('e1000000', v_i),
       public._demo_uuid('e0000000', 1 + ((v_i - 1) % 15)),
-      public._demo_uuid('a0000000', 1 + ((v_i + 2) % 15)),
+      public._seed_pick_profile(v_profile_ids, v_i + 2),
       case v_i % 5
         when 0 then 'Reel hay quá!'
         when 1 then 'Công thức trong reel rất hữu ích.'
@@ -443,7 +368,7 @@ begin
   end loop;
 
   -- ---------------------------------------------------------------------------
-  -- 11. reel_comment replies (10) — uses parent_id on reel_comments
+  -- 10. reel_comment replies (10)
   -- ---------------------------------------------------------------------------
   for v_i in 1..10 loop
     insert into public.reel_comments (
@@ -451,7 +376,7 @@ begin
     ) values (
       public._demo_uuid('e1100000', v_i),
       public._demo_uuid('e0000000', 1 + ((v_i - 1) % 15)),
-      public._demo_uuid('a0000000', 1 + ((v_i + 4) % 15)),
+      public._seed_pick_profile(v_profile_ids, v_i + 4),
       case v_i % 3
         when 0 then 'Chuẩn luôn!'
         when 1 then 'Mình cũng thích reel này.'
@@ -464,58 +389,62 @@ begin
   end loop;
 
   -- ---------------------------------------------------------------------------
-  -- 12. follows (30) — skip self-follow (check constraint)
+  -- 11. follows (30) — skip self-follow
   -- ---------------------------------------------------------------------------
-  for v_i in 1..30 loop
-    v_follower_id := public._demo_uuid('a0000000', 1 + ((v_i - 1) % 15));
-    v_following_id := public._demo_uuid('a0000000', 1 + (v_i % 15));
-    if v_follower_id <> v_following_id then
-      insert into public.follows (id, follower_id, following_id, created_at)
-      values (
-        public._demo_uuid('20000000', v_i),
-        v_follower_id, v_following_id,
-        v_now - (v_i || ' days')::interval
-      )
-      on conflict (follower_id, following_id) do nothing;
-    end if;
-  end loop;
+  if v_n >= 2 then
+    for v_i in 1..30 loop
+      v_follower_id := public._seed_pick_profile(v_profile_ids, v_i);
+      v_following_id := public._seed_pick_profile(v_profile_ids, v_i + 1);
+      if v_follower_id <> v_following_id then
+        insert into public.follows (id, follower_id, following_id, created_at)
+        values (
+          public._demo_uuid('20000000', v_i),
+          v_follower_id, v_following_id,
+          v_now - (v_i || ' days')::interval
+        )
+        on conflict (follower_id, following_id) do nothing;
+      end if;
+    end loop;
+  end if;
 
   -- ---------------------------------------------------------------------------
-  -- 13. friend_requests (20) — skip sender = receiver
+  -- 12. friend_requests (20) — skip sender = receiver
   -- ---------------------------------------------------------------------------
-  for v_i in 1..20 loop
-    v_sender_id := public._demo_uuid('a0000000', v_i);
-    v_receiver_id := public._demo_uuid('a0000000', 1 + (v_i % 15));
-    if v_sender_id <> v_receiver_id then
-      insert into public.friend_requests (
-        id, sender_id, receiver_id, status, created_at, updated_at
-      ) values (
-        public._demo_uuid('30000000', v_i),
-        v_sender_id, v_receiver_id,
-        case v_i % 4
-          when 0 then 'accepted'
-          when 2 then 'rejected'
-          else 'pending'
-        end,
-        v_now - (v_i || ' days')::interval, v_now
-      )
-      on conflict (sender_id, receiver_id) do nothing;
-    end if;
-  end loop;
+  if v_n >= 2 then
+    for v_i in 1..20 loop
+      v_sender_id := public._seed_pick_profile(v_profile_ids, v_i);
+      v_receiver_id := public._seed_pick_profile(v_profile_ids, v_i + 1);
+      if v_sender_id <> v_receiver_id then
+        insert into public.friend_requests (
+          id, sender_id, receiver_id, status, created_at, updated_at
+        ) values (
+          public._demo_uuid('30000000', v_i),
+          v_sender_id, v_receiver_id,
+          case v_i % 4
+            when 0 then 'accepted'
+            when 2 then 'rejected'
+            else 'pending'
+          end,
+          v_now - (v_i || ' days')::interval, v_now
+        )
+        on conflict (sender_id, receiver_id) do nothing;
+      end if;
+    end loop;
+  end if;
 
   -- ---------------------------------------------------------------------------
-  -- 14. saved_posts + saved_recipes (only if tables exist on instance)
+  -- 13. saved_posts + saved_recipes (optional tables)
   -- ---------------------------------------------------------------------------
   if exists (
     select 1 from information_schema.tables
     where table_schema = 'public' and table_name = 'saved_posts'
   ) then
-    for v_i in 1..10 loop
+    for v_i in 1..least(10, 30) loop
       insert into public.saved_posts (id, user_id, post_id, collection_name, created_at)
       values (
         public._demo_uuid('40000000', v_i),
-        public._demo_uuid('a0000000', v_i),
-        public._demo_uuid('b0000000', v_i),
+        public._seed_pick_profile(v_profile_ids, v_i),
+        public._demo_uuid('feed0000', 1 + ((v_i - 1) % 30)),
         'default',
         v_now - (v_i || ' days')::interval
       )
@@ -527,12 +456,12 @@ begin
     select 1 from information_schema.tables
     where table_schema = 'public' and table_name = 'saved_recipes'
   ) then
-    for v_i in 1..10 loop
+    for v_i in 1..least(10, 20) loop
       insert into public.saved_recipes (id, user_id, post_id, created_at)
       values (
         public._demo_uuid('50000000', v_i),
-        public._demo_uuid('a0000000', 1 + (v_i % 15)),
-        public._demo_uuid('c0000000', v_i),
+        public._seed_pick_profile(v_profile_ids, v_i),
+        public._demo_uuid('recipe00', v_i),
         v_now - (v_i || ' days')::interval
       )
       on conflict (user_id, post_id) do nothing;
@@ -540,7 +469,7 @@ begin
   end if;
 
   -- ---------------------------------------------------------------------------
-  -- 15. notifications — no updated_at column
+  -- 14. notifications (20)
   -- ---------------------------------------------------------------------------
   for v_i in 1..20 loop
     insert into public.notifications (
@@ -548,8 +477,8 @@ begin
       post_id, group_id, comment_id, is_read, created_at
     ) values (
       public._demo_uuid('60000000', v_i),
-      public._demo_uuid('a0000000', v_i),
-      public._demo_uuid('a0000000', 1 + (v_i % 15)),
+      public._seed_pick_profile(v_profile_ids, v_i),
+      public._seed_pick_profile(v_profile_ids, v_i + 1),
       case v_i % 5
         when 0 then 'like'
         when 1 then 'comment'
@@ -565,7 +494,7 @@ begin
         else 'Chào mừng đến SnapChef!'
       end,
       'Nhấn để xem chi tiết',
-      case when v_i % 2 = 0 then public._demo_uuid('b0000000', 1 + (v_i % 30)) else null end,
+      case when v_i % 2 = 0 then public._demo_uuid('feed0000', 1 + (v_i % 30)) else null end,
       case when v_i % 3 = 0 then public._demo_uuid('d0000000', 1 + (v_i % 10)) else null end,
       case when v_i % 4 = 0 then public._demo_uuid('f0000000', 1 + (v_i % 50)) else null end,
       v_i % 3 = 0,
@@ -575,16 +504,13 @@ begin
   end loop;
 
   -- ---------------------------------------------------------------------------
-  -- 16. Reconcile denormalized counts (no optional-column filters)
+  -- 15. Reconcile denormalized counts
   -- ---------------------------------------------------------------------------
   update public.profiles p
   set posts_count = sub.cnt
   from (
     select author_id, count(*)::int as cnt
     from public.posts
-    where author_id in (
-      select public._demo_uuid('a0000000', i) from generate_series(1, 15) i
-    )
     group by author_id
   ) sub
   where p.id = sub.author_id;
@@ -627,7 +553,7 @@ begin
   ) c
   where p.id = c.post_id;
 
-  raise notice 'SnapChef dev seed completed successfully.';
+  raise notice 'SnapChef dev seed completed successfully (% profiles).', v_n;
 end;
 $$;
 

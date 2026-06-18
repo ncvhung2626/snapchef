@@ -1,7 +1,8 @@
 # SnapChef — Schema Audit
 
-**Live Supabase instance (verified via `information_schema.columns`)** — authoritative for seed script.  
-Migration files in repo may differ; see § Divergence notes at bottom.
+**Live Supabase instance (verified via `information_schema.columns`)** — authoritative for seed script.
+
+**Seed rule:** `dev_seed.sql` loads user FKs from `public.profiles` only. No fake profile UUIDs. Register users in the app before running seed.
 
 **App code:** `commentService.ts` uses `parent_comment_id` on `comments` (not `parent_id`).
 
