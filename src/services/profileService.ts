@@ -7,9 +7,16 @@ export interface ProfileStats {
   followingCount: number;
 }
 
+export interface ExtendedProfileStats extends ProfileStats {
+  recipesCount: number;
+  reelsCount: number;
+  groupsCount: number;
+}
+
 interface ProfileRow {
   id: string;
   fullname: string;
+  username?: string | null;
   email: string | null;
   avatar: string | null;
   bio: string | null;
@@ -25,6 +32,7 @@ function mapProfile(row: ProfileRow, stats?: ProfileStats): User {
   return {
     _id: row.id,
     fullname: row.fullname,
+    username: row.username ?? undefined,
     email: row.email ?? '',
     avatar: row.avatar ?? undefined,
     bio: row.bio ?? undefined,
@@ -62,6 +70,32 @@ export async function getProfileStats(userId: string): Promise<ProfileStats> {
     postsCount: data?.posts_count ?? 0,
     followersCount: data?.followers_count ?? 0,
     followingCount: data?.following_count ?? 0,
+  };
+}
+
+export async function getExtendedProfileStats(userId: string): Promise<ExtendedProfileStats> {
+  const base = await getProfileStats(userId);
+  assertSupabaseConfigured();
+  const supabase = getSupabase();
+  const [recipesRes, reelsRes, groupsRes] = await Promise.all([
+    supabase
+      .from('posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('author_id', userId)
+      .not('title', 'is', null)
+      .is('deleted_at', null),
+    supabase
+      .from('reels')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .is('deleted_at', null),
+    supabase.from('group_members').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+  ]);
+  return {
+    ...base,
+    recipesCount: recipesRes.count ?? 0,
+    reelsCount: reelsRes.count ?? 0,
+    groupsCount: groupsRes.count ?? 0,
   };
 }
 

@@ -3,6 +3,7 @@ export type UserRole = 'user' | 'moderator' | 'admin';
 export interface User {
   _id: string;
   fullname: string;
+  username?: string;
   email: string;
   avatar?: string;
   bio?: string;
@@ -16,6 +17,7 @@ export interface User {
 export interface Post {
   _id: string;
   author: User;
+  title?: string;
   content: string;
   images: string[];
   videos: string[];
@@ -25,6 +27,12 @@ export interface Post {
   hashtags: string[];
   visibility: 'public' | 'friends' | 'group';
   groupId?: string;
+  category?: string;
+  ingredients?: string[];
+  steps?: string[];
+  cookTimeMinutes?: number;
+  isRecipe?: boolean;
+  isSaved?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -48,6 +56,8 @@ export interface Group {
   coverImage?: string;
   ownerId: string;
   privacy?: 'public' | 'private';
+  memberCanPost?: boolean;
+  memberCanInvite?: boolean;
   admins: string[];
   members: string[];
   membersCount?: number;
@@ -85,6 +95,9 @@ export interface Conversation {
   otherUserId?: string;
   otherUserName?: string;
   otherUserAvatar?: string;
+  groupId?: string;
+  groupTitle?: string;
+  isGroupChat?: boolean;
   lastMessage: string;
   updatedAt: string;
 }
@@ -96,17 +109,27 @@ export interface Message {
   senderName: string;
   content: string;
   createdAt: string;
+  status?: 'pending' | 'sent' | 'delivered' | 'failed';
+  readByOthers?: boolean;
 }
 
 export interface Reel {
   _id: string;
-  author: string;
+  authorId: string;
+  authorName: string;
   authorHandle: string;
+  authorAvatar?: string;
   description: string;
-  videoUrl?: string;
-  likes: string;
-  comments: string;
-  saves: string;
+  videoUrl: string;
+  thumbnailUrl?: string;
+  likesCount: number;
+  commentsCount: number;
+  savesCount: number;
+  viewCount: number;
+  likedByMe: boolean;
+  savedByMe: boolean;
+  recipePostId?: string;
+  createdAt: string;
 }
 
 export interface SavedRecipe {
