@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, TextInputProps } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
@@ -19,6 +19,8 @@ export const AuthTextField = ({
   style,
   ...rest
 }: AuthTextFieldProps) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [visible, setVisible] = useState(false);
 
   return (
@@ -42,33 +44,35 @@ export const AuthTextField = ({
   );
 };
 
-const styles = StyleSheet.create({
-  wrap: { marginBottom: spacing.lg },
-  label: {
-    ...typography.labelMd,
-    color: colors.onSurface,
-    marginBottom: spacing.xs,
-  },
-  inputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 52,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-  },
-  inputError: { borderColor: colors.error },
-  input: {
-    flex: 1,
-    ...typography.bodyLg,
-    color: colors.onSurface,
-  },
-  eyeBtn: { padding: spacing.xs },
-  errorText: {
-    ...typography.bodyMd,
-    color: colors.error,
-    marginTop: spacing['2xs'],
-  },
-});
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
+    wrap: { marginBottom: spacing.lg },
+    label: {
+      ...typography.labelMd,
+      color: colors.onSurface,
+      marginBottom: spacing.xs,
+    },
+    inputWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      height: 52,
+      backgroundColor: colors.surfaceContainerLowest,
+      borderWidth: 1,
+      borderColor: colors.outlineVariant,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+    },
+    inputError: { borderColor: colors.error },
+    input: {
+      flex: 1,
+      ...typography.bodyLg,
+      color: colors.onSurface,
+    },
+    eyeBtn: { padding: spacing.xs },
+    errorText: {
+      ...typography.bodyMd,
+      color: colors.error,
+      marginTop: spacing['2xs'],
+    },
+  });
+}

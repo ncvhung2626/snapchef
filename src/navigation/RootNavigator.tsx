@@ -1,5 +1,5 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useMemo } from 'react';
+import { NavigationContainer, DarkTheme, DefaultTheme, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList, RootStackParamList } from '../types/navigation';
@@ -9,7 +9,11 @@ import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
 import { HomeScreen } from '../screens/HomeScreen';
+import { SearchScreen } from '../screens/SearchScreen';
 import { ReelsScreen } from '../screens/ReelsScreen';
+import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
+import { CreateRecipeScreen } from '../screens/CreateRecipeScreen';
+import { SavedRecipesScreen } from '../screens/SavedRecipesScreen';
 import { InboxScreen } from '../screens/InboxScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { CreatePostScreen } from '../screens/CreatePostScreen';
@@ -23,6 +27,16 @@ import { EditProfileScreen } from '../screens/EditProfileScreen';
 import { ChatScreen } from '../screens/ChatScreen';
 import { NewChatScreen } from '../screens/NewChatScreen';
 import { BottomTabBar } from '../components/BottomTabBar';
+import { AdminModerationScreen } from '../screens/AdminModerationScreen';
+import { FriendsScreen } from '../screens/FriendsScreen';
+import { UserProfileScreen } from '../screens/UserProfileScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
+import { EditPostScreen } from '../screens/EditPostScreen';
+import { EditRecipeScreen } from '../screens/EditRecipeScreen';
+import { EditGroupScreen } from '../screens/EditGroupScreen';
+import { CreateReelScreen } from '../screens/CreateReelScreen';
+import { AchievementsScreen } from '../screens/AchievementsScreen';
+import { useTheme } from '../theme/ThemeContext';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -36,7 +50,7 @@ function MainTabs() {
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Feed" component={HomeScreen} options={{ tabBarLabel: 'Trang chủ' }} />
-      <Tab.Screen name="Reels" component={ReelsScreen} options={{ tabBarLabel: 'Reels' }} />
+      <Tab.Screen name="Search" component={SearchScreen} options={{ tabBarLabel: 'Tìm kiếm' }} />
       <Tab.Screen name="Inbox" component={InboxScreen} options={{ tabBarLabel: 'Thông báo' }} />
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarLabel: 'Cá nhân' }} />
     </Tab.Navigator>
@@ -45,13 +59,29 @@ function MainTabs() {
 
 export function RootNavigator() {
   const { user, isBootstrapping } = useAuth();
+  const { colors, isDark } = useTheme();
+
+  const navigationTheme = useMemo<Theme>(
+    () => ({
+      ...(isDark ? DarkTheme : DefaultTheme),
+      colors: {
+        ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
+        primary: colors.primary,
+        background: colors.background,
+        card: colors.surface,
+        text: colors.onSurface,
+        border: colors.outlineVariant,
+      },
+    }),
+    [colors, isDark]
+  );
 
   if (isBootstrapping) {
     return <AuthLoadingScreen />;
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator
         id="RootStack"
         key={user ? 'app' : 'guest'}
@@ -85,6 +115,23 @@ export function RootNavigator() {
         />
         <Stack.Screen name="Chat" component={ChatScreen} />
         <Stack.Screen name="NewChat" component={NewChatScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen
+          name="CreateRecipe"
+          component={CreateRecipeScreen}
+          options={{ presentation: 'modal' }}
+        />
+        <Stack.Screen name="SavedRecipes" component={SavedRecipesScreen} />
+        <Stack.Screen name="Reels" component={ReelsScreen} />
+        <Stack.Screen name="AdminModeration" component={AdminModerationScreen} />
+        <Stack.Screen name="Friends" component={FriendsScreen} />
+        <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="EditPost" component={EditPostScreen} options={{ presentation: 'modal' }} />
+        <Stack.Screen name="EditRecipe" component={EditRecipeScreen} options={{ presentation: 'modal' }} />
+        <Stack.Screen name="EditGroup" component={EditGroupScreen} />
+        <Stack.Screen name="CreateReel" component={CreateReelScreen} options={{ presentation: 'modal' }} />
+        <Stack.Screen name="Achievements" component={AchievementsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

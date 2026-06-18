@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import type { NotificationType as ModelType } from '../types/models';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
+import type { AppColors } from '../theme/palettes';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
@@ -18,7 +19,7 @@ interface NotificationItemProps {
   timeAgo?: string;
 }
 
-const getTypeStyles = (type: NotificationType) => {
+const getTypeStyles = (type: NotificationType, colors: AppColors) => {
   switch (type) {
     case 'premium':
     case 'system':
@@ -68,7 +69,9 @@ export const NotificationItem = ({
   isUnread = false,
   timeAgo,
 }: NotificationItemProps) => {
-  const { icon, iconColor, bgColor } = getTypeStyles(type);
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { icon, iconColor, bgColor } = getTypeStyles(type, colors);
 
   return (
     <TouchableOpacity
@@ -93,55 +96,57 @@ export const NotificationItem = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.sm,
-    shadowColor: colors.onSurface,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 2,
-    alignItems: 'center',
-  },
-  unreadContainer: {
-    backgroundColor: colors.surfaceContainerLow,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  content: {
-    flex: 1,
-  },
-  title: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
-    marginBottom: spacing.xs,
-  },
-  description: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-  },
-  time: {
-    ...typography.bodyMd,
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-    marginTop: spacing['2xs'],
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: radius.full,
-    backgroundColor: colors.primary,
-    marginLeft: spacing.sm,
-  },
-});
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      padding: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      marginHorizontal: spacing.md,
+      marginVertical: spacing.sm,
+      shadowColor: colors.onSurface,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.05,
+      shadowRadius: 20,
+      elevation: 2,
+      alignItems: 'center',
+    },
+    unreadContainer: {
+      backgroundColor: colors.surfaceContainerLow,
+    },
+    iconContainer: {
+      width: 48,
+      height: 48,
+      borderRadius: radius.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.md,
+    },
+    content: {
+      flex: 1,
+    },
+    title: {
+      ...typography.headlineMd,
+      color: colors.onSurface,
+      marginBottom: spacing.xs,
+    },
+    description: {
+      ...typography.bodyMd,
+      color: colors.onSurfaceVariant,
+    },
+    time: {
+      ...typography.bodyMd,
+      fontSize: 12,
+      color: colors.onSurfaceVariant,
+      marginTop: spacing['2xs'],
+    },
+    unreadDot: {
+      width: 8,
+      height: 8,
+      borderRadius: radius.full,
+      backgroundColor: colors.primary,
+      marginLeft: spacing.sm,
+    },
+  });
+}

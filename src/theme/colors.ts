@@ -1,51 +1,8 @@
-export const colors = {
-  surface: '#f7f9fb',
-  surfaceDim: '#d8dadc',
-  surfaceBright: '#f7f9fb',
-  surfaceContainerLowest: '#ffffff',
-  surfaceContainerLow: '#f2f4f6',
-  surfaceContainer: '#eceef0',
-  surfaceContainerHigh: '#e6e8ea',
-  surfaceContainerHighest: '#e0e3e5',
-  onSurface: '#191c1e',
-  onSurfaceVariant: '#574237',
-  inverseSurface: '#2d3133',
-  inverseOnSurface: '#eff1f3',
-  outline: '#8a7265',
-  outlineVariant: '#dec1b2',
-  surfaceTint: '#9b4500',
-  primary: '#9b4500',
-  onPrimary: '#ffffff',
-  primaryContainer: '#f17a28',
-  onPrimaryContainer: '#572400',
-  inversePrimary: '#ffb68d',
-  secondary: '#565e74',
-  onSecondary: '#ffffff',
-  secondaryContainer: '#dae2fd',
-  onSecondaryContainer: '#5c647a',
-  tertiary: '#795900',
-  onTertiary: '#ffffff',
-  tertiaryContainer: '#c59300',
-  onTertiaryContainer: '#433000',
-  error: '#ba1a1a',
-  onError: '#ffffff',
-  errorContainer: '#ffdad6',
-  onErrorContainer: '#93000a',
-  primaryFixed: '#ffdbc9',
-  primaryFixedDim: '#ffb68d',
-  onPrimaryFixed: '#331200',
-  onPrimaryFixedVariant: '#763300',
-  secondaryFixed: '#dae2fd',
-  secondaryFixedDim: '#bec6e0',
-  onSecondaryFixed: '#131b2e',
-  onSecondaryFixedVariant: '#3f465c',
-  tertiaryFixed: '#ffdf9f',
-  tertiaryFixedDim: '#f9bd22',
-  onTertiaryFixed: '#261a00',
-  onTertiaryFixedVariant: '#5c4300',
-  background: '#f7f9fb',
-  onBackground: '#191c1e',
-  surfaceVariant: '#e0e3e5',
-};
+import { lightColors } from './palettes';
 
-export type Colors = typeof colors;
+/** @deprecated Prefer useTheme().colors in components */
+export const colors = lightColors;
+
+export type Colors = typeof lightColors;
+
+export { lightColors, darkColors, type AppColors } from './palettes';

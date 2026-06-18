@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { CreateActionSheet } from './CreateActionSheet';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
@@ -8,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { getUnreadCount } from '../services/notificationService';
 import type { RootStackParamList } from '../types/navigation';
 import type { NavigationProp } from '@react-navigation/native';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { shadows } from '../theme/shadows';
@@ -20,13 +21,15 @@ const TAB_CONFIG: Array<{
   isFab?: boolean;
 }> = [
   { name: 'Feed', icon: 'home', label: 'Trang chủ' },
-  { name: 'Reels', icon: 'film', label: 'Reels' },
-  { name: 'CreatePost', icon: 'plus', label: 'Đăng bài', isFab: true },
+  { name: 'Search', icon: 'search', label: 'Tìm kiếm' },
+  { name: 'CreatePost', icon: 'plus', label: 'Tạo', isFab: true },
   { name: 'Inbox', icon: 'bell', label: 'Thông báo' },
   { name: 'Profile', icon: 'user', label: 'Cá nhân' },
 ];
 
 export const BottomTabBar = ({ state, descriptors, navigation }: BottomTabBarProps) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -50,9 +53,10 @@ export const BottomTabBar = ({ state, descriptors, navigation }: BottomTabBarPro
     refreshUnread();
   }, [state.index, refreshUnread]);
 
-  const openCreatePost = () => rootNav?.navigate('CreatePost');
+  const [createOpen, setCreateOpen] = useState(false);
 
   return (
+    <>
     <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
       {TAB_CONFIG.map((tab) => {
         if (tab.isFab) {
@@ -60,7 +64,7 @@ export const BottomTabBar = ({ state, descriptors, navigation }: BottomTabBarPro
             <TouchableOpacity
               key={tab.name}
               activeOpacity={0.8}
-              onPress={openCreatePost}
+              onPress={() => setCreateOpen(true)}
               style={styles.tab}
               accessibilityLabel="Đăng bài"
             >
@@ -123,62 +127,73 @@ export const BottomTabBar = ({ state, descriptors, navigation }: BottomTabBarPro
         );
       })}
     </View>
+    <CreateActionSheet
+      visible={createOpen}
+      onClose={() => setCreateOpen(false)}
+      onQuickPost={() => rootNav?.navigate('CreatePost')}
+      onRecipe={() => rootNav?.navigate('CreateRecipe')}
+      onReel={() => rootNav?.navigate('CreateReel')}
+    />
+    </>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    paddingTop: spacing.sm,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.surfaceVariant,
-  },
-  tab: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    flex: 1,
-  },
-  label: {
-    ...typography.labelMd,
-    marginTop: spacing.xs,
-  },
-  postButtonWrapper: {
-    marginTop: -spacing.lg,
-    marginBottom: spacing.xs,
-  },
-  postButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
-    borderWidth: 4,
-    borderColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.fab,
-  },
-  postLabel: {
-    marginTop: 0,
-    fontWeight: '700',
-  },
-  badge: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.error,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.onError,
-  },
-});
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      alignItems: 'flex-end',
+      paddingTop: spacing.sm,
+      backgroundColor: colors.surface,
+      borderTopWidth: 1,
+      borderTopColor: colors.surfaceVariant,
+    },
+    tab: {
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      flex: 1,
+    },
+    label: {
+      ...typography.labelMd,
+      marginTop: spacing.xs,
+    },
+    postButtonWrapper: {
+      marginTop: -spacing.lg,
+      marginBottom: spacing.xs,
+    },
+    postButton: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.primary,
+      borderWidth: 4,
+      borderColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...shadows.fab,
+      shadowColor: colors.primary,
+    },
+    postLabel: {
+      marginTop: 0,
+      fontWeight: '700',
+    },
+    badge: {
+      position: 'absolute',
+      top: -4,
+      right: -8,
+      minWidth: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: colors.error,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 4,
+    },
+    badgeText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.onError,
+    },
+  });
+}

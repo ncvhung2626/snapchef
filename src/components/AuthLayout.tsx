@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
@@ -24,6 +24,9 @@ interface AuthLayoutProps {
 }
 
 export const AuthLayout = ({ title, subtitle, children, onBack, footer }: AuthLayoutProps) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
@@ -60,55 +63,57 @@ export const AuthLayout = ({ title, subtitle, children, onBack, footer }: AuthLa
   );
 };
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  flex: { flex: 1 },
-  scroll: {
-    flexGrow: 1,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing['2xl'],
-    paddingTop: spacing.md,
-  },
-  backBtn: {
-    alignSelf: 'flex-start',
-    padding: spacing.xs,
-    marginBottom: spacing.md,
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  logoSmall: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.full,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brand: {
-    ...typography.headlineLg,
-    color: colors.primary,
-    fontWeight: '700',
-  },
-  title: {
-    ...typography.headlineXl,
-    color: colors.onSurface,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    ...typography.bodyLg,
-    color: colors.onSurfaceVariant,
-    marginBottom: spacing.xl,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-  },
-});
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    flex: { flex: 1 },
+    scroll: {
+      flexGrow: 1,
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing['2xl'],
+      paddingTop: spacing.md,
+    },
+    backBtn: {
+      alignSelf: 'flex-start',
+      padding: spacing.xs,
+      marginBottom: spacing.md,
+    },
+    brandRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      marginBottom: spacing.xl,
+    },
+    logoSmall: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.full,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    brand: {
+      ...typography.headlineLg,
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    title: {
+      ...typography.headlineXl,
+      color: colors.onSurface,
+      marginBottom: spacing.xs,
+    },
+    subtitle: {
+      ...typography.bodyLg,
+      color: colors.onSurfaceVariant,
+      marginBottom: spacing.xl,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.xl,
+      padding: spacing.lg,
+      borderWidth: 1,
+      borderColor: colors.outlineVariant,
+    },
+  });
+}
