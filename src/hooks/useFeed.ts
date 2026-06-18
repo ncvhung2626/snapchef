@@ -5,16 +5,16 @@ import { useAuth } from '../context/AuthContext';
 
 export type FeedTab = 'forYou' | 'groups' | 'discover';
 
-export function useFeed(tab: FeedTab) {
+export function useFeed(tab: FeedTab, category = 'all') {
   const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    const data = await postService.getFeed(tab, user?._id);
+    const data = await postService.getFeed(tab, user?._id, category);
     setPosts(data);
-  }, [tab, user?._id]);
+  }, [tab, user?._id, category]);
 
   useEffect(() => {
     setLoading(true);

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useTheme } from '../theme/ThemeContext';
 import {
   View,
   Text,
@@ -14,7 +15,6 @@ import type { RootStackScreenProps } from '../types/navigation';
 import { useAuth } from '../context/AuthContext';
 import { AuthTextField } from '../components/AuthTextField';
 import { updateProfile } from '../services/profileService';
-import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
@@ -22,6 +22,8 @@ import { radius } from '../theme/radius';
 export const EditProfileScreen = ({
   navigation,
 }: RootStackScreenProps<'EditProfile'>) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const { user, refreshProfile, setUser } = useAuth();
   const [fullname, setFullname] = useState(user?.fullname ?? '');
@@ -107,7 +109,8 @@ export const EditProfileScreen = ({
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -137,3 +140,4 @@ const styles = StyleSheet.create({
   emailLabel: { ...typography.labelMd, color: colors.onSurfaceVariant },
   emailValue: { ...typography.bodyLg, color: colors.onSurface, marginTop: spacing['2xs'] },
 });
+}

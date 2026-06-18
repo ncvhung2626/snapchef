@@ -1,9 +1,11 @@
-import { getSupabase, assertSupabaseConfigured, isSupabaseConfigured } from '../lib/supabase';
+import { getSupabase, assertSupabaseConfigured } from '../lib/supabase';
 import type { Conversation, Message } from '../types/models';
 
 interface ConversationRow {
   id: string;
   dm_key: string | null;
+  group_id: string | null;
+  title: string | null;
   last_message: string;
   last_message_at: string;
   created_at: string;
@@ -15,11 +17,12 @@ interface MessageRow {
   conversation_id: string;
   sender_id: string;
   content: string;
+  status?: string;
   created_at: string;
   profiles?: { id: string; fullname: string; avatar: string | null } | { id: string; fullname: string; avatar: string | null }[];
 }
 
-function mapMessage(row: MessageRow): Message {
+function mapMessage(row: MessageRow, readByOthers?: boolean): Message {
   const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
   return {
     _id: row.id,
@@ -28,69 +31,78 @@ function mapMessage(row: MessageRow): Message {
     senderName: profile?.fullname ?? 'Người dùng',
     content: row.content,
     createdAt: row.created_at,
+    status: (row.status as Message['status']) ?? 'sent',
+    readByOthers,
   };
 }
 
 export async function getConversations(userId: string): Promise<Conversation[]> {
-  if (!isSupabaseConfigured) return [];
-  try {
-    assertSupabaseConfigured();
-    const supabase = getSupabase();
+  assertSupabaseConfigured();
+  const supabase = getSupabase();
 
-    const { data: memberships, error: memErr } = await supabase
+  const { data: memberships, error: memErr } = await supabase
+    .from('conversation_members')
+    .select('conversation_id')
+    .eq('user_id', userId);
+
+  if (memErr) throw new Error(memErr.message);
+  const ids = (memberships ?? []).map((m: { conversation_id: string }) => m.conversation_id);
+  if (!ids.length) return [];
+
+  const { data: convos, error } = await supabase
+    .from('conversations')
+    .select('*')
+    .in('id', ids)
+    .order('last_message_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  const results: Conversation[] = [];
+  for (const row of (convos ?? []) as ConversationRow[]) {
+    const { data: members } = await supabase
       .from('conversation_members')
-      .select('conversation_id')
-      .eq('user_id', userId);
+      .select('user_id, profiles!user_id (id, fullname, avatar)')
+      .eq('conversation_id', row.id);
 
-    if (memErr) throw memErr;
-    const ids = (memberships ?? []).map((m: { conversation_id: string }) => m.conversation_id);
-    if (!ids.length) return [];
+    const participantIds = (members ?? []).map((m: { user_id: string }) => m.user_id);
+    const isGroupChat = Boolean(row.group_id);
 
-    const { data: convos, error } = await supabase
-      .from('conversations')
-      .select('*')
-      .in('id', ids)
-      .order('last_message_at', { ascending: false });
-
-    if (error) throw error;
-
-    const results: Conversation[] = [];
-    for (const row of (convos ?? []) as ConversationRow[]) {
-      const { data: members } = await supabase
-        .from('conversation_members')
-        .select('user_id, profiles!user_id (id, fullname, avatar)')
-        .eq('conversation_id', row.id);
-
-      const participantIds = (members ?? []).map((m: { user_id: string }) => m.user_id);
-      const other = (members ?? []).find((m: { user_id: string }) => m.user_id !== userId) as
-        | { user_id: string; profiles?: { fullname: string; avatar: string | null } | { fullname: string; avatar: string | null }[] }
-        | undefined;
-      const profile = other?.profiles
-        ? Array.isArray(other.profiles)
-          ? other.profiles[0]
-          : other.profiles
-        : undefined;
-
+    if (isGroupChat) {
       results.push({
         _id: row.id,
         participants: participantIds,
-        otherUserId: other?.user_id,
-        otherUserName: profile?.fullname,
-        otherUserAvatar: profile?.avatar ?? undefined,
+        groupId: row.group_id ?? undefined,
+        groupTitle: row.title ?? undefined,
+        isGroupChat: true,
         lastMessage: row.last_message,
         updatedAt: row.last_message_at,
       });
+      continue;
     }
-    return results;
-  } catch {
-    return [];
+
+    const other = (members ?? []).find((m: { user_id: string }) => m.user_id !== userId) as
+      | { user_id: string; profiles?: { fullname: string; avatar: string | null } | { fullname: string; avatar: string | null }[] }
+      | undefined;
+    const profile = other?.profiles
+      ? Array.isArray(other.profiles)
+        ? other.profiles[0]
+        : other.profiles
+      : undefined;
+
+    results.push({
+      _id: row.id,
+      participants: participantIds,
+      otherUserId: other?.user_id,
+      otherUserName: profile?.fullname,
+      otherUserAvatar: profile?.avatar ?? undefined,
+      lastMessage: row.last_message,
+      updatedAt: row.last_message_at,
+    });
   }
+  return results;
 }
 
-export async function getOrCreateConversation(
-  userId: string,
-  otherUserId: string
-): Promise<Conversation> {
+export async function getOrCreateConversation(userId: string, otherUserId: string): Promise<Conversation> {
   assertSupabaseConfigured();
   const supabase = getSupabase();
 
@@ -124,25 +136,49 @@ export async function getOrCreateConversation(
   };
 }
 
-export async function getMessages(conversationId: string): Promise<Message[]> {
-  if (!isSupabaseConfigured) return [];
+export async function getOrCreateGroupConversation(groupId: string, userId: string): Promise<Conversation> {
+  assertSupabaseConfigured();
+  const supabase = getSupabase();
+  const { data: convoId, error } = await supabase.rpc('create_group_conversation', { p_group_id: groupId });
+  if (error) throw new Error(error.message);
+
+  const list = await getConversations(userId);
+  const found = list.find((c) => c._id === convoId);
+  if (found) return found;
+
+  const { data: convo } = await supabase.from('conversations').select('*').eq('id', convoId).single();
+  return {
+    _id: convoId as string,
+    participants: [],
+    groupId,
+    groupTitle: convo?.title ?? undefined,
+    isGroupChat: true,
+    lastMessage: convo?.last_message ?? '',
+    updatedAt: convo?.last_message_at ?? new Date().toISOString(),
+  };
+}
+
+export async function getMessages(conversationId: string, currentUserId?: string): Promise<Message[]> {
   assertSupabaseConfigured();
   const supabase = getSupabase();
 
   const { data, error } = await supabase
     .from('messages')
-    .select(
-      `
-      id, conversation_id, sender_id, content, created_at,
-      profiles!sender_id (id, fullname, avatar)
-    `
-    )
+    .select('id, conversation_id, sender_id, content, status, created_at, profiles!sender_id (id, fullname, avatar)')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
     .limit(100);
 
   if (error) throw new Error(error.message);
-  return (data as MessageRow[]).map(mapMessage);
+
+  const reads = await getConversationReads(conversationId);
+  return (data as MessageRow[]).map((row) => {
+    const readByOthers =
+      currentUserId && row.sender_id === currentUserId
+        ? reads.some((r) => r.userId !== currentUserId && new Date(r.lastReadAt) >= new Date(row.created_at))
+        : undefined;
+    return mapMessage(row, readByOthers);
+  });
 }
 
 export async function sendMessage(
@@ -161,34 +197,45 @@ export async function sendMessage(
       conversation_id: conversationId,
       sender_id: senderId,
       content: trimmed,
+      status: 'sent',
     })
-    .select(
-      `
-      id, conversation_id, sender_id, content, created_at,
-      profiles!sender_id (id, fullname, avatar)
-    `
-    )
+    .select('id, conversation_id, sender_id, content, status, created_at, profiles!sender_id (id, fullname, avatar)')
     .single();
 
-  if (error || !data) {
-    const { data: simple, error: err2 } = await supabase
-      .from('messages')
-      .insert({ conversation_id: conversationId, sender_id: senderId, content: trimmed })
-      .select('*')
-      .single();
-    if (err2 || !simple) throw new Error(error?.message ?? 'Không gửi được tin nhắn');
-    return mapMessage(simple as MessageRow);
-  }
+  if (error || !data) throw new Error(error?.message ?? 'Không gửi được tin nhắn');
+  return mapMessage(data as MessageRow, false);
+}
 
-  return mapMessage(data as MessageRow);
+export async function markConversationRead(conversationId: string): Promise<void> {
+  assertSupabaseConfigured();
+  const { error } = await getSupabase().rpc('mark_conversation_read', {
+    p_conversation_id: conversationId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+interface ReadRow {
+  user_id: string;
+  last_read_at: string;
+}
+
+export async function getConversationReads(
+  conversationId: string
+): Promise<Array<{ userId: string; lastReadAt: string }>> {
+  assertSupabaseConfigured();
+  const { data, error } = await getSupabase()
+    .from('conversation_reads')
+    .select('user_id, last_read_at')
+    .eq('conversation_id', conversationId);
+  if (error) return [];
+  return (data as ReadRow[]).map((r) => ({ userId: r.user_id, lastReadAt: r.last_read_at }));
 }
 
 export function subscribeToMessages(
   conversationId: string,
   onMessage: (message: Message) => void
 ): () => void {
-  if (!isSupabaseConfigured) return () => undefined;
-
+  assertSupabaseConfigured();
   const supabase = getSupabase();
   const channel = supabase
     .channel(`messages:${conversationId}`)
@@ -217,9 +264,76 @@ export function subscribeToMessages(
     )
     .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
+  return () => { void supabase.removeChannel(channel); };
+}
+
+export function subscribeToReadReceipts(
+  conversationId: string,
+  onRead: () => void
+): () => void {
+  assertSupabaseConfigured();
+  const supabase = getSupabase();
+  const channel = supabase
+    .channel(`reads:${conversationId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'conversation_reads',
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      () => onRead()
+    )
+    .subscribe();
+  return () => { void supabase.removeChannel(channel); };
+}
+
+export type TypingPayload = { userId: string; userName?: string; isTyping: boolean };
+
+export function subscribeToTyping(
+  conversationId: string,
+  currentUserId: string,
+  onTyping: (payload: TypingPayload) => void
+): () => void {
+  assertSupabaseConfigured();
+  const supabase = getSupabase();
+  const channel = supabase
+    .channel(`typing:${conversationId}`, { config: { broadcast: { self: false } } })
+    .on('broadcast', { event: 'typing' }, (payload) => {
+      const data = payload.payload as TypingPayload;
+      if (data.userId !== currentUserId) onTyping(data);
+    })
+    .subscribe();
+  return () => { void supabase.removeChannel(channel); };
+}
+
+const typingChannels = new Map<string, ReturnType<ReturnType<typeof getSupabase>['channel']>>();
+
+function getTypingChannel(conversationId: string) {
+  const supabase = getSupabase();
+  let channel = typingChannels.get(conversationId);
+  if (!channel) {
+    channel = supabase.channel(`typing:${conversationId}`, { config: { broadcast: { self: false } } });
+    void channel.subscribe();
+    typingChannels.set(conversationId, channel);
+  }
+  return channel;
+}
+
+export function emitTyping(
+  conversationId: string,
+  userId: string,
+  userName: string,
+  isTyping: boolean
+): void {
+  assertSupabaseConfigured();
+  const channel = getTypingChannel(conversationId);
+  void channel.send({
+    type: 'broadcast',
+    event: 'typing',
+    payload: { userId, userName, isTyping } satisfies TypingPayload,
+  });
 }
 
 export async function searchUsersForChat(
@@ -228,11 +342,7 @@ export async function searchUsersForChat(
 ): Promise<Array<{ id: string; fullname: string; avatar?: string }>> {
   assertSupabaseConfigured();
   const supabase = getSupabase();
-  let q = supabase
-    .from('profiles')
-    .select('id, fullname, avatar')
-    .neq('id', currentUserId)
-    .limit(30);
+  let q = supabase.from('profiles').select('id, fullname, avatar').neq('id', currentUserId).limit(30);
 
   if (query?.trim()) {
     q = q.ilike('fullname', `%${query.trim()}%`);

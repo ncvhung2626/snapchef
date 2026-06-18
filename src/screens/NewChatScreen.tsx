@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
+import { useTheme } from '../theme/ThemeContext';
 import {
   View,
   Text,
@@ -15,12 +16,13 @@ import { Feather } from '@expo/vector-icons';
 import type { RootStackScreenProps } from '../types/navigation';
 import { useAuth } from '../context/AuthContext';
 import * as chatService from '../services/chatService';
-import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
 
 export const NewChatScreen = ({ navigation }: RootStackScreenProps<'NewChat'>) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [query, setQuery] = useState('');
@@ -109,7 +111,8 @@ export const NewChatScreen = ({ navigation }: RootStackScreenProps<'NewChat'>) =
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -157,3 +160,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
 });
+}

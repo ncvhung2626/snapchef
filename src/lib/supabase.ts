@@ -1,27 +1,28 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { chunkedGetItem, chunkedRemoveItem, chunkedSetItem } from './chunkedSecureStore';
 
 const memoryStore: Record<string, string> = {};
 
-const ExpoSecureStoreAdapter = {
+/** Session lớn: chunked SecureStore (Expo Go + APK, không cần AsyncStorage native). */
+const SupabaseAuthStorage = {
   getItem: async (key: string) => {
     if (Platform.OS === 'web') return memoryStore[key] ?? null;
-    return SecureStore.getItemAsync(key);
+    return chunkedGetItem(key);
   },
   setItem: async (key: string, value: string) => {
     if (Platform.OS === 'web') {
       memoryStore[key] = value;
       return;
     }
-    await SecureStore.setItemAsync(key, value);
+    await chunkedSetItem(key, value);
   },
   removeItem: async (key: string) => {
     if (Platform.OS === 'web') {
       delete memoryStore[key];
       return;
     }
-    await SecureStore.deleteItemAsync(key);
+    await chunkedRemoveItem(key);
   },
 };
 
@@ -57,7 +58,7 @@ function createSupabaseClient(): SupabaseClient {
   }
   return createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-      storage: ExpoSecureStoreAdapter,
+      storage: SupabaseAuthStorage,
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,

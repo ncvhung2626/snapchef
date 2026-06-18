@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import type { User } from '../types/models';
 import * as authService from '../services/authService';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import { useAuthStore } from '../store/authStore';
 
 interface AuthContextValue {
   user: User | null;
@@ -11,6 +12,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (fullname: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  loginWithGoogle: () => Promise<boolean>;
   refreshProfile: () => Promise<void>;
   setUser: (user: User | null) => void;
 }
@@ -18,14 +20,23 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(null);
+  const setStoreUser = useAuthStore((s) => s.setUser);
+
+  const setUser = useCallback(
+    (u: User | null) => {
+      setUserState(u);
+      setStoreUser(u);
+    },
+    [setStoreUser]
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   const logout = useCallback(async () => {
     await authService.logout();
     setUser(null);
-  }, []);
+  }, [setUser]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -33,7 +44,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    authService.restoreSession().then(setUser).finally(() => setIsBootstrapping(false));
+    const BOOTSTRAP_MS = 12_000;
+    const restoreWithTimeout = Promise.race([
+      authService.restoreSession(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), BOOTSTRAP_MS)),
+    ]);
+
+    restoreWithTimeout
+      .then(setUser)
+      .catch(() => setUser(null))
+      .finally(() => {
+        setIsBootstrapping(false);
+        useAuthStore.getState().setBootstrapping(false);
+      });
 
     const supabase = getSupabase();
     const {
@@ -62,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [setUser]);
 
   const register = useCallback(async (fullname: string, email: string, password: string) => {
     setIsLoading(true);
@@ -72,12 +95,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [setUser]);
 
   const refreshProfile = useCallback(async () => {
     const u = await authService.getProfile();
     setUser(u);
-  }, []);
+  }, [setUser]);
+
+  const loginWithGoogle = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const payload = await authService.signInWithGoogle();
+      if (!payload) return false;
+      setUser(payload.user);
+      return true;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setUser]);
 
   const value = useMemo(
     () => ({
@@ -88,10 +123,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
       logout,
+      loginWithGoogle,
       refreshProfile,
       setUser,
     }),
-    [user, isLoading, isBootstrapping, login, register, logout, refreshProfile]
+    [user, isLoading, isBootstrapping, login, register, logout, loginWithGoogle, refreshProfile, setUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

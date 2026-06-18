@@ -1,6 +1,8 @@
-import type { User, UserRole } from '../types/models';
-import { assertSupabaseConfigured, getSupabase } from '../lib/supabase';
-import { fetchUserProfile } from './profileService';
+import type { User } from '../types/models';
+import { assertSupabaseConfigured, getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import * as authRepository from '../repositories/auth.repository';
+import * as WebBrowser from 'expo-web-browser';
+import { makeRedirectUri } from 'expo-auth-session';
 
 export interface AuthPayload {
   user: User;
@@ -25,66 +27,89 @@ export async function register(
   password: string
 ): Promise<AuthPayload> {
   assertSupabaseConfigured();
-  const supabase = getSupabase();
-
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { fullname } },
-  });
-
+  const { data, error } = await authRepository.signUp(email, password, fullname);
   if (error) throw new Error(error.message);
   if (!data.session) {
     throw new Error(
       'Đăng ký thành công. Kiểm tra email xác nhận — hoặc tắt "Confirm email" trong Supabase Dashboard.'
     );
   }
-
-  const profile = await fetchUserProfile(data.user!.id);
+  const profile = await authRepository.fetchProfileByUserId(data.user!.id);
   return payloadFromSession(data.session, profile);
 }
 
 export async function login(email: string, password: string): Promise<AuthPayload> {
   assertSupabaseConfigured();
-  const supabase = getSupabase();
-
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await authRepository.signInWithPassword(email, password);
   if (error) throw new Error(error.message);
   if (!data.session) throw new Error('Đăng nhập thất bại');
-
-  const profile = await fetchUserProfile(data.user.id);
+  const profile = await authRepository.fetchProfileByUserId(data.user.id);
   return payloadFromSession(data.session, profile);
 }
 
 export async function getProfile(): Promise<User> {
   assertSupabaseConfigured();
-  const supabase = getSupabase();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getSupabase().auth.getUser();
   if (!user) throw new Error('Chưa đăng nhập');
-  return fetchUserProfile(user.id);
+  return authRepository.fetchProfileByUserId(user.id);
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  assertSupabaseConfigured();
+  const trimmed = email.trim().toLowerCase();
+  if (!trimmed) throw new Error('Nhập email');
+  await authRepository.requestPasswordReset(trimmed, makeRedirectUri({ path: 'reset-password' }));
+}
+
+WebBrowser.maybeCompleteAuthSession();
+
+export async function signInWithGoogle(): Promise<AuthPayload | null> {
+  assertSupabaseConfigured();
+  const redirectTo = makeRedirectUri({ path: 'auth/callback' });
+  const { data, error } = await getSupabase().auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo, skipBrowserRedirect: true },
+  });
+  if (error) throw new Error(error.message);
+  if (!data.url) throw new Error('Không mở được đăng nhập Google');
+
+  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+  if (result.type !== 'success' || !result.url) return null;
+
+  const url = new URL(result.url);
+  const code = url.searchParams.get('code');
+  if (code) {
+    const { data: sessionData, error: exchangeError } =
+      await getSupabase().auth.exchangeCodeForSession(code);
+    if (exchangeError) throw new Error(exchangeError.message);
+    if (!sessionData.session?.user) return null;
+    const profile = await authRepository.fetchProfileByUserId(sessionData.session.user.id);
+    return payloadFromSession(sessionData.session, profile);
+  }
+
+  const { data: sessionData, error: sessionError } = await getSupabase().auth.getSession();
+  if (sessionError) throw new Error(sessionError.message);
+  if (!sessionData.session?.user) return null;
+  const profile = await authRepository.fetchProfileByUserId(sessionData.session.user.id);
+  return payloadFromSession(sessionData.session, profile);
 }
 
 export async function logout(): Promise<void> {
   assertSupabaseConfigured();
-  const { error } = await getSupabase().auth.signOut();
-  if (error) throw new Error(error.message);
+  await authRepository.signOut();
 }
 
 export async function restoreSession(): Promise<User | null> {
-  if (!process.env.EXPO_PUBLIC_SUPABASE_URL) return null;
-
+  if (!isSupabaseConfigured) return null;
   try {
-    const supabase = getSupabase();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const session = await authRepository.getSession();
     if (!session?.user) return null;
-    return await fetchUserProfile(session.user.id);
+    return await authRepository.fetchProfileByUserId(session.user.id);
   } catch {
     try {
-      await getSupabase().auth.signOut();
+      await authRepository.signOut();
     } catch {
       /* ignore */
     }

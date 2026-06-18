@@ -1,15 +1,18 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import type { RootStackScreenProps } from '../types/navigation';
-import { colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
 import { shadows } from '../theme/shadows';
 
 export const WelcomeScreen = ({ navigation }: RootStackScreenProps<'Welcome'>) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.hero}>
@@ -55,80 +58,84 @@ export const WelcomeScreen = ({ navigation }: RootStackScreenProps<'Welcome'>) =
   );
 };
 
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingHorizontal: spacing.lg,
-    justifyContent: 'center',
-  },
-  hero: {
-    alignItems: 'center',
-    marginBottom: spacing['2xl'],
-  },
-  logoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: radius.full,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-    ...shadows.fab,
-  },
-  brand: {
-    ...typography.headlineXl,
-    color: colors.primary,
-    marginBottom: spacing.xs,
-  },
-  tagline: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  desc: {
-    ...typography.bodyLg,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    paddingHorizontal: spacing.md,
-  },
-  features: {
-    marginBottom: spacing['2xl'],
-    gap: spacing.md,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  featureText: {
-    ...typography.bodyLg,
-    color: colors.onSurface,
-  },
-  primaryBtn: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-    ...shadows.card,
-  },
-  primaryBtnText: {
-    ...typography.bodyLg,
-    color: colors.onPrimary,
-    fontWeight: '700',
-  },
-  skipText: {
-    ...typography.bodyMd,
-    color: colors.primary,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  loginSecondary: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-  },
-});
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
+    safe: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingHorizontal: spacing.lg,
+      justifyContent: 'center',
+    },
+    hero: {
+      alignItems: 'center',
+      marginBottom: spacing['2xl'],
+    },
+    logoCircle: {
+      width: 96,
+      height: 96,
+      borderRadius: radius.full,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.lg,
+      ...shadows.fab,
+      shadowColor: colors.primary,
+    },
+    brand: {
+      ...typography.headlineXl,
+      color: colors.primary,
+      marginBottom: spacing.xs,
+    },
+    tagline: {
+      ...typography.headlineMd,
+      color: colors.onSurface,
+      textAlign: 'center',
+      marginBottom: spacing.sm,
+    },
+    desc: {
+      ...typography.bodyLg,
+      color: colors.onSurfaceVariant,
+      textAlign: 'center',
+      paddingHorizontal: spacing.md,
+    },
+    features: {
+      marginBottom: spacing['2xl'],
+      gap: spacing.md,
+    },
+    featureRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    featureText: {
+      ...typography.bodyLg,
+      color: colors.onSurface,
+    },
+    primaryBtn: {
+      backgroundColor: colors.primary,
+      paddingVertical: spacing.md,
+      borderRadius: radius.full,
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+      ...shadows.card,
+      shadowColor: colors.onSurface,
+    },
+    primaryBtnText: {
+      ...typography.bodyLg,
+      color: colors.onPrimary,
+      fontWeight: '700',
+    },
+    skipText: {
+      ...typography.bodyMd,
+      color: colors.primary,
+      textAlign: 'center',
+      fontWeight: '600',
+    },
+    loginSecondary: {
+      ...typography.bodyMd,
+      color: colors.onSurfaceVariant,
+      textAlign: 'center',
+    },
+  });
+}

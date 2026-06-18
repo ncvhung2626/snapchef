@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
+import { useTheme } from '../theme/ThemeContext';
 import {
   View,
   Text,
@@ -17,18 +18,58 @@ import * as ImagePicker from 'expo-image-picker';
 import { Feather } from '@expo/vector-icons';
 import { AppHeader } from '../components/AppHeader';
 import { useAuth } from '../context/AuthContext';
+import { hasPermission } from '../utils/permissions';
 import { createPost } from '../services/postService';
-import { colors } from '../theme/colors';
+import { usePostStore } from '../store/postStore';
+import { invalidateFeedQueries } from '../utils/invalidateFeed';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
 
 export const CreatePostScreen = ({ navigation, route }: any) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   const groupId = route.params?.groupId as string | undefined;
+  const setDraft = usePostStore((s) => s.setDraft);
+  const clearDraft = usePostStore((s) => s.clearDraft);
+  const loadDraft = usePostStore((s) => s.loadDraft);
   const [content, setContent] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [draftHint, setDraftHint] = useState(false);
+
+  React.useEffect(() => {
+    if (!user) {
+      Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để đăng bài', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+      return;
+    }
+    if (!hasPermission(user, 'post.create')) {
+      Alert.alert('Không có quyền', 'Bạn không có quyền đăng bài', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+      return;
+    }
+    void loadDraft().then(() => {
+      const d = usePostStore.getState().draft;
+      if (d?.content) {
+        setContent(d.content);
+        setDraftHint(true);
+      }
+    });
+  }, [user, loadDraft, navigation]);
+
+  // One-way sync: local content → store only.
+  React.useEffect(() => {
+    if (content) {
+      setDraft({ content, updatedAt: new Date().toISOString() });
+      void usePostStore.getState().persistDraft();
+    } else {
+      void clearDraft();
+    }
+  }, [content, setDraft, clearDraft]);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -60,6 +101,10 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
         groupId,
         visibility: groupId ? 'group' : 'public',
       });
+      setContent('');
+      setDraftHint(false);
+      await clearDraft();
+      invalidateFeedQueries();
       Alert.alert('Thành công', 'Đã đăng bài', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
@@ -73,6 +118,9 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <AppHeader title={groupId ? 'Đăng bài trong nhóm' : 'Đăng bài'} />
+      {draftHint && content.length > 0 && (
+        <Text style={styles.draftHint}>Đã khôi phục bản nháp</Text>
+      )}
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -127,20 +175,20 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
-  scrollContent: { padding: spacing.lg },
-  title: {
-    ...typography.headlineLg,
+  draftHint: {
+    ...typography.labelMd,
     color: colors.primary,
-    marginBottom: spacing['2xs'],
+    textAlign: 'center',
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.primaryContainer,
   },
-  subtitle: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    marginBottom: spacing.xl,
-  },
+  scrollContent: { padding: spacing.lg },
+  title: { ...typography.headlineLg, color: colors.primary, marginBottom: spacing['2xs'] },
+  subtitle: { ...typography.bodyMd, color: colors.onSurfaceVariant, marginBottom: spacing.xl },
   inputContainer: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -150,15 +198,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.surfaceVariant,
   },
-  textInput: {
-    ...typography.bodyLg,
-    color: colors.onSurface,
-    flex: 1,
-    textAlignVertical: 'top',
-  },
+  textInput: { ...typography.bodyLg, color: colors.onSurface, flex: 1, textAlignVertical: 'top' },
   imageUpload: {
     minHeight: 160,
-    backgroundColor: colors.primaryFixed,
+    backgroundColor: colors.primaryContainer,
     borderRadius: radius.md,
     borderWidth: 1,
     borderStyle: 'dashed',
@@ -168,17 +211,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   previewImage: { width: '100%', height: 200, borderRadius: radius.md },
-  uploadText: {
-    ...typography.labelMd,
-    color: colors.primary,
-    marginTop: spacing.sm,
-  },
-  removeImage: {
-    ...typography.bodyMd,
-    color: colors.error,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-  },
+  uploadText: { ...typography.labelMd, color: colors.primary, marginTop: spacing.sm },
+  removeImage: { ...typography.bodyMd, color: colors.error, textAlign: 'center', marginTop: spacing.sm },
   footer: {
     padding: spacing.lg,
     paddingBottom: spacing['2xl'],
@@ -193,9 +227,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   submitDisabled: { opacity: 0.7 },
-  submitText: {
-    ...typography.labelMd,
-    color: colors.onPrimary,
-    fontWeight: 'bold',
-  },
+  submitText: { ...typography.labelMd, color: colors.onPrimary, fontWeight: 'bold' },
 });
+}

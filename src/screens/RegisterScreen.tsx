@@ -1,38 +1,44 @@
-import React, { useState } from 'react';
-import { Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import React, { useMemo } from 'react';
+import { Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import type { RootStackScreenProps } from '../types/navigation';
 import { useAuth } from '../context/AuthContext';
 import { AuthLayout } from '../components/AuthLayout';
 import { AuthTextField } from '../components/AuthTextField';
-import { colors } from '../theme/colors';
+import { PrimaryButton } from '../components/PrimaryButton';
+import { registerSchema, type RegisterInput } from '../validation/schemas/auth.schema';
+import { useTheme } from '../theme/ThemeContext';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
-import { radius } from '../theme/radius';
-import { shadows } from '../theme/shadows';
 
 export const RegisterScreen = ({ navigation }: RootStackScreenProps<'Register'>) => {
-  const { register, isLoading } = useAuth();
-  const [fullname, setFullname] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { register: registerUser, isLoading } = useAuth();
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<RegisterInput>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      fullname: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      acceptTerms: false,
+    },
+  });
 
-  const validate = () => {
-    const next: Record<string, string> = {};
-    if (!fullname.trim()) next.fullname = 'Nhập họ tên';
-    if (!email.trim()) next.email = 'Nhập email';
-    else if (!/\S+@\S+\.\S+/.test(email)) next.email = 'Email không hợp lệ';
-    if (password.length < 6) next.password = 'Mật khẩu tối thiểu 6 ký tự';
-    if (password !== confirm) next.confirm = 'Mật khẩu không khớp';
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  };
+  const acceptTerms = watch('acceptTerms');
 
-  const handleRegister = async () => {
-    if (!validate()) return;
+  const onSubmit = async (values: RegisterInput) => {
     try {
-      await register(fullname.trim(), email.trim().toLowerCase(), password);
+      await registerUser(values.fullname.trim(), values.email.trim().toLowerCase(), values.password);
       navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
     } catch (e) {
       Alert.alert('Đăng ký', e instanceof Error ? e.message : 'Có lỗi xảy ra');
@@ -50,74 +56,104 @@ export const RegisterScreen = ({ navigation }: RootStackScreenProps<'Register'>)
         </TouchableOpacity>
       }
     >
-      <AuthTextField
-        label="Họ và tên"
-        placeholder="Nguyễn Văn A"
-        value={fullname}
-        onChangeText={setFullname}
-        error={errors.fullname}
+      <Controller
+        control={control}
+        name="fullname"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <AuthTextField
+            label="Họ và tên"
+            placeholder="Nguyễn Văn A"
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            error={errors.fullname?.message}
+          />
+        )}
       />
-      <AuthTextField
-        label="Email"
-        placeholder="email@snapchef.app"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        value={email}
-        onChangeText={setEmail}
-        error={errors.email}
+      <Controller
+        control={control}
+        name="email"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <AuthTextField
+            label="Email"
+            placeholder="email@snapchef.app"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            error={errors.email?.message}
+          />
+        )}
       />
-      <AuthTextField
-        label="Mật khẩu"
-        placeholder="Tối thiểu 6 ký tự"
-        isPassword
-        value={password}
-        onChangeText={setPassword}
-        error={errors.password}
+      <Controller
+        control={control}
+        name="password"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <AuthTextField
+            label="Mật khẩu"
+            placeholder="Chữ + số, tối thiểu 8 ký tự"
+            isPassword
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            error={errors.password?.message}
+          />
+        )}
       />
-      <AuthTextField
-        label="Xác nhận mật khẩu"
-        placeholder="Nhập lại mật khẩu"
-        isPassword
-        value={confirm}
-        onChangeText={setConfirm}
-        error={errors.confirm}
+      <Controller
+        control={control}
+        name="confirmPassword"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <AuthTextField
+            label="Xác nhận mật khẩu"
+            placeholder="Nhập lại mật khẩu"
+            isPassword
+            value={value}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            error={errors.confirmPassword?.message}
+          />
+        )}
       />
 
       <TouchableOpacity
-        style={[styles.submitBtn, isLoading && styles.submitDisabled]}
-        onPress={handleRegister}
-        disabled={isLoading}
+        style={styles.termsRow}
+        onPress={() => setValue('acceptTerms', !acceptTerms, { shouldValidate: true })}
+        activeOpacity={0.8}
       >
-        {isLoading ? (
-          <ActivityIndicator color={colors.onPrimary} />
-        ) : (
-          <Text style={styles.submitText}>Đăng ký</Text>
-        )}
+        <Feather
+          name={acceptTerms ? 'check-square' : 'square'}
+          size={22}
+          color={acceptTerms ? colors.primary : colors.onSurfaceVariant}
+        />
+        <Text style={styles.termsText}>Tôi đồng ý điều khoản & chính sách SnapChef</Text>
       </TouchableOpacity>
+      {errors.acceptTerms?.message ? (
+        <Text style={styles.termsErr}>{errors.acceptTerms.message}</Text>
+      ) : null}
+
+      <PrimaryButton label="Đăng ký" onPress={handleSubmit(onSubmit)} loading={isLoading} />
     </AuthLayout>
   );
 };
 
-const styles = StyleSheet.create({
-  submitBtn: {
-    height: 52,
-    backgroundColor: colors.primary,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing.sm,
-    ...shadows.card,
-  },
-  submitDisabled: { opacity: 0.7 },
-  submitText: {
-    ...typography.bodyLg,
-    color: colors.onPrimary,
-    fontWeight: '700',
-  },
-  loginLink: { marginTop: spacing.xl, alignItems: 'center' },
-  loginLinkText: {
-    ...typography.bodyMd,
-    color: colors.primary,
-    fontWeight: '700',
-  },
-});
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
+    termsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    termsText: { ...typography.bodyMd, color: colors.onSurfaceVariant, flex: 1 },
+    termsErr: { ...typography.bodyMd, color: colors.error, marginBottom: spacing.sm },
+    loginLink: { marginTop: spacing.xl, alignItems: 'center' },
+    loginLinkText: {
+      ...typography.bodyMd,
+      color: colors.primary,
+      fontWeight: '700',
+    },
+  });
+}

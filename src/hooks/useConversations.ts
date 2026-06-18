@@ -14,8 +14,12 @@ export function useConversations() {
       setConversations([]);
       return;
     }
-    const data = await chatService.getConversations(user._id);
-    setConversations(data);
+    try {
+      const data = await chatService.getConversations(user._id);
+      setConversations(data);
+    } catch {
+      setConversations([]);
+    }
   }, [user?._id]);
 
   useEffect(() => {
