@@ -1,4 +1,5 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+import { useTheme } from '../theme/ThemeContext';
 import {
   View,
   Text,
@@ -17,16 +18,21 @@ import { useAuth } from '../context/AuthContext';
 import { useChatMessages } from '../hooks/useChatMessages';
 import type { Message } from '../types/models';
 import { formatRelativeTime } from '../utils/formatTime';
-import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
 
 export const ChatScreen = ({ navigation, route }: RootStackScreenProps<'Chat'>) => {
-  const { conversationId, title } = route.params;
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { conversationId, title, isGroupChat } = route.params;
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { messages, loading, sending, send } = useChatMessages(conversationId);
+  const { messages, loading, sending, send, typingUsers, notifyTyping } = useChatMessages(
+    conversationId,
+    user?._id,
+    user?.fullname
+  );
   const [text, setText] = useState('');
   const listRef = useRef<FlatList>(null);
 
@@ -34,6 +40,7 @@ export const ChatScreen = ({ navigation, route }: RootStackScreenProps<'Chat'>) 
     if (!user || !text.trim()) return;
     const content = text.trim();
     setText('');
+    notifyTyping(false);
     try {
       await send(user._id, content);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
@@ -42,15 +49,28 @@ export const ChatScreen = ({ navigation, route }: RootStackScreenProps<'Chat'>) 
     }
   };
 
+  const handleTextChange = (value: string) => {
+    setText(value);
+    notifyTyping(value.trim().length > 0);
+  };
+
   const renderBubble = ({ item }: { item: Message }) => {
     const isMine = item.sender === user?._id;
     return (
       <View style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}>
         <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleOther]}>
+          {!isMine && isGroupChat ? (
+            <Text style={styles.senderName}>{item.senderName}</Text>
+          ) : null}
           <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>{item.content}</Text>
-          <Text style={[styles.bubbleTime, isMine && styles.bubbleTimeMine]}>
-            {formatRelativeTime(item.createdAt)}
-          </Text>
+          <View style={styles.metaRow}>
+            <Text style={[styles.bubbleTime, isMine && styles.bubbleTimeMine]}>
+              {formatRelativeTime(item.createdAt)}
+            </Text>
+            {isMine && item.readByOthers ? (
+              <Feather name="check-circle" size={12} color={colors.onPrimary} style={styles.readIcon} />
+            ) : null}
+          </View>
         </View>
       </View>
     );
@@ -88,13 +108,17 @@ export const ChatScreen = ({ navigation, route }: RootStackScreenProps<'Chat'>) 
         />
       )}
 
+      {typingUsers.length > 0 ? (
+        <Text style={styles.typing}>Đang nhập...</Text>
+      ) : null}
+
       <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
         <TextInput
           style={styles.input}
           placeholder="Nhập tin nhắn..."
           placeholderTextColor={colors.onSurfaceVariant}
           value={text}
-          onChangeText={setText}
+          onChangeText={handleTextChange}
           multiline
           maxLength={2000}
         />
@@ -114,7 +138,8 @@ export const ChatScreen = ({ navigation, route }: RootStackScreenProps<'Chat'>) 
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -139,6 +164,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing['2xl'],
   },
+  typing: {
+    ...typography.bodyMd,
+    color: colors.onSurfaceVariant,
+    fontStyle: 'italic',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xs,
+  },
   bubbleRow: { marginBottom: spacing.sm, alignItems: 'flex-start' },
   bubbleRowMine: { alignItems: 'flex-end' },
   bubble: {
@@ -149,15 +181,18 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
   },
   bubbleMine: { backgroundColor: colors.primary },
+  bubbleOther: { backgroundColor: colors.surfaceContainerHigh },
+  senderName: { ...typography.labelMd, color: colors.primary, marginBottom: 2 },
   bubbleText: { ...typography.bodyLg, color: colors.onSurface },
   bubbleTextMine: { color: colors.onPrimary },
+  metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing['2xs'] },
   bubbleTime: {
     ...typography.bodyMd,
     fontSize: 11,
     color: colors.onSurfaceVariant,
-    marginTop: spacing['2xs'],
   },
   bubbleTimeMine: { color: colors.onPrimary, opacity: 0.85 },
+  readIcon: { marginLeft: 4, opacity: 0.9 },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -188,3 +223,4 @@ const styles = StyleSheet.create({
   },
   sendDisabled: { opacity: 0.5 },
 });
+}

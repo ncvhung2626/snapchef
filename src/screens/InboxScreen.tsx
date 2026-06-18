@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useTheme } from '../theme/ThemeContext';
 import {
   View,
   Text,
@@ -19,12 +20,14 @@ import { useConversations } from '../hooks/useConversations';
 import type { Notification, Conversation } from '../types/models';
 import type { RootStackParamList } from '../types/navigation';
 import { formatRelativeTime } from '../utils/formatTime';
-import { colors } from '../theme/colors';
+import { EmptyState } from '../components/StateViews';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
 
 export const InboxScreen = () => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const navigation = useNavigation();
   const rootNav = navigation.getParent<NavigationProp<RootStackParamList>>();
   const [activeTab, setActiveTab] = useState<'notifications' | 'messages'>('notifications');
@@ -62,7 +65,8 @@ export const InboxScreen = () => {
   const openChat = (c: Conversation) => {
     rootNav?.navigate('Chat', {
       conversationId: c._id,
-      title: c.otherUserName ?? 'Tin nhắn',
+      title: c.isGroupChat ? (c.groupTitle ?? 'Chat nhóm') : (c.otherUserName ?? 'Tin nhắn'),
+      isGroupChat: c.isGroupChat,
     });
   };
 
@@ -75,19 +79,17 @@ export const InboxScreen = () => {
   const isEmpty = listData.length === 0;
 
   const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyTitle}>Chưa có dữ liệu</Text>
-      <Text style={styles.emptyDesc}>
-        {activeTab === 'notifications'
+    <EmptyState
+      icon={activeTab === 'notifications' ? 'bell' : 'message-circle'}
+      title={activeTab === 'notifications' ? 'Chưa có thông báo' : 'Chưa có tin nhắn'}
+      message={
+        activeTab === 'notifications'
           ? 'Khi có người thích, bình luận hoặc theo dõi bạn, thông báo sẽ hiển thị ở đây.'
-          : 'Bắt đầu trò chuyện với bạn bè trong cộng đồng SnapChef.'}
-      </Text>
-      {activeTab === 'messages' && (
-        <TouchableOpacity style={styles.newChatBtn} onPress={openNewChat}>
-          <Text style={styles.newChatText}>Tin nhắn mới</Text>
-        </TouchableOpacity>
-      )}
-    </View>
+          : 'Bắt đầu trò chuyện với bạn bè trong cộng đồng SnapChef.'
+      }
+      actionLabel={activeTab === 'messages' ? 'Tin nhắn mới' : undefined}
+      onAction={activeTab === 'messages' ? openNewChat : undefined}
+    />
   );
 
   const headerRight =
@@ -128,36 +130,45 @@ export const InboxScreen = () => {
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
+      ) : activeTab === 'notifications' ? (
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => item._id}
+          renderItem={({ item: n }) => (
+            <NotificationItem
+              title={n.title}
+              description={n.description}
+              type={n.type}
+              isUnread={!n.isRead}
+              timeAgo={formatRelativeTime(n.createdAt)}
+              onPress={() => openNotification(n)}
+            />
+          )}
+          contentContainerStyle={[styles.listContainer, notifications.length === 0 && styles.listEmpty]}
+          ListEmptyComponent={renderEmpty}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+        />
       ) : (
         <FlatList
-          data={listData as Notification[] | Conversation[]}
+          data={conversations}
           keyExtractor={(item) => item._id}
-          renderItem={({ item }) => {
-            if (activeTab === 'notifications') {
-              const n = item as Notification;
-              return (
-                <NotificationItem
-                  title={n.title}
-                  description={n.description}
-                  type={n.type}
-                  isUnread={!n.isRead}
-                  timeAgo={formatRelativeTime(n.createdAt)}
-                  onPress={() => openNotification(n)}
-                />
-              );
-            }
-            const c = item as Conversation;
-            return (
-              <MessageItem
-                name={c.otherUserName ?? 'Người dùng'}
-                message={c.lastMessage}
-                avatarUrl={c.otherUserAvatar}
-                timeAgo={formatRelativeTime(c.updatedAt)}
-                onPress={() => openChat(c)}
-              />
-            );
-          }}
-          contentContainerStyle={[styles.listContainer, isEmpty && styles.listEmpty]}
+          renderItem={({ item: c }) => (
+            <MessageItem
+              name={c.isGroupChat ? (c.groupTitle ?? 'Chat nhóm') : (c.otherUserName ?? 'Người dùng')}
+              message={c.lastMessage}
+              avatarUrl={c.isGroupChat ? undefined : c.otherUserAvatar}
+              timeAgo={formatRelativeTime(c.updatedAt)}
+              onPress={() => openChat(c)}
+            />
+          )}
+          contentContainerStyle={[styles.listContainer, conversations.length === 0 && styles.listEmpty]}
           ListEmptyComponent={renderEmpty}
           refreshControl={
             <RefreshControl
@@ -173,7 +184,8 @@ export const InboxScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.background,
@@ -250,3 +262,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+}

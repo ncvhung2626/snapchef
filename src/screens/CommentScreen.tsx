@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useTheme } from '../theme/ThemeContext';
 import {
   View,
   Text,
@@ -18,10 +19,10 @@ import { Feather } from '@expo/vector-icons';
 import type { RootStackScreenProps } from '../types/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useComments } from '../hooks/useComments';
+import { useFeedStore } from '../store/feedStore';
 import * as postService from '../services/postService';
 import { CommentItem } from '../components/CommentItem';
 import { formatRelativeTime } from '../utils/formatTime';
-import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
@@ -30,12 +31,32 @@ export const CommentScreen = ({
   navigation,
   route,
 }: RootStackScreenProps<'Comment'>) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { postId } = route.params;
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [commentText, setCommentText] = useState('');
+  const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
+  const setCommentDraft = useFeedStore((s) => s.setCommentDraft);
+  const clearCommentDraft = useFeedStore((s) => s.clearCommentDraft);
   const [post, setPost] = React.useState<Awaited<ReturnType<typeof postService.getPostById>>>(undefined);
-  const { comments, loading, submitting, addComment } = useComments(postId);
+  const { comments, replies, loading, submitting, addComment, removeComment, loadReplies } = useComments(postId);
+
+  // Hydrate persisted draft once per post — do not depend on commentDrafts (avoids store↔state loop).
+  React.useEffect(() => {
+    const saved = useFeedStore.getState().commentDrafts[postId];
+    if (saved) setCommentText(saved);
+  }, [postId]);
+
+  // One-way sync: local text → store only.
+  React.useEffect(() => {
+    if (commentText) {
+      setCommentDraft(postId, commentText);
+    } else {
+      clearCommentDraft(postId);
+    }
+  }, [commentText, postId, setCommentDraft, clearCommentDraft]);
 
   const quickReactions = ['🤩 Ngon quá!', '🔥 Tuyệt vời', '👏 Hay lắm', '🥗 Eat clean'];
 
@@ -47,8 +68,10 @@ export const CommentScreen = ({
     const body = (text ?? commentText).trim();
     if (!body || !user) return;
     try {
-      await addComment(user._id, body);
+      await addComment(user._id, body, replyTo?.id);
       setCommentText('');
+      clearCommentDraft(postId);
+      setReplyTo(null);
       if (post) {
         setPost({ ...post, commentsCount: post.commentsCount + 1 });
       }
@@ -135,7 +158,28 @@ export const CommentScreen = ({
       <FlatList
         data={comments}
         keyExtractor={(item) => item._id}
-        renderItem={({ item }) => <CommentItem comment={item} />}
+        renderItem={({ item }) => (
+          <>
+            <CommentItem
+              comment={item}
+              currentUserId={user?._id}
+              onReply={(c) => {
+                setReplyTo({ id: c._id, name: c.authorName });
+                void loadReplies(c._id);
+              }}
+              onDelete={(id) => user && removeComment(id, user._id)}
+            />
+            {(replies[item._id] ?? []).map((reply) => (
+              <CommentItem
+                key={reply._id}
+                comment={reply}
+                currentUserId={user?._id}
+                isReply
+                onDelete={(id) => user && removeComment(id, user._id)}
+              />
+            ))}
+          </>
+        )}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={
           !loading ? (
@@ -164,6 +208,14 @@ export const CommentScreen = ({
         </ScrollView>
 
         <View style={styles.inputRow}>
+          {replyTo && (
+            <View style={styles.replyBanner}>
+              <Text style={styles.replyBannerText}>Trả lời {replyTo.name}</Text>
+              <TouchableOpacity onPress={() => setReplyTo(null)}>
+                <Feather name="x" size={16} color={colors.onSurfaceVariant} />
+              </TouchableOpacity>
+            </View>
+          )}
           {user?.avatar ? (
             <Image source={{ uri: user.avatar }} style={styles.inputAvatar} />
           ) : (
@@ -196,7 +248,8 @@ export const CommentScreen = ({
   );
 };
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -352,4 +405,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendDisabled: { opacity: 0.6 },
+  replyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xs,
+  },
+  replyBannerText: { ...typography.labelMd, color: colors.primary },
 });
+}
