@@ -35,6 +35,7 @@ Các sprint sau (Posts, Groups, Chat) có thể lưu trực tiếp trên **Postg
 | 5 | `supabase/sprint5_groups.sql` |
 | 6 | `supabase/sprint6_notifications.sql` |
 | 7 | `supabase/sprint7_chat.sql` |
+| 9 | `supabase/sprint9_recipes.sql` |
 
 Tạo bảng `profiles` + trigger tự tạo profile khi user đăng ký.
 
