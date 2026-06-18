@@ -1,6 +1,8 @@
 -- =============================================================================
 -- SnapChef — Development seed (schema-validated)
--- Schema audit: supabase/SCHEMA_AUDIT.md
+-- Live Supabase schema (information_schema verified 2026-06).
+-- See supabase/SCHEMA_AUDIT.md — posts.like_count/comment_count/share_count required;
+-- reels has NO updated_at; saved_posts/saved_recipes optional.
 --
 -- Prerequisite: schema.sql → sprint2–13 → production/01–06 (full stack).
 -- Run in Supabase SQL Editor (postgres / service role bypasses RLS).
@@ -274,12 +276,14 @@ begin
     insert into public.posts (
       id, author_id, content, images, videos, visibility, group_id,
       title, category, ingredients, steps, cook_time_minutes,
+      like_count, comment_count, share_count,
       created_at, updated_at
     ) values (
       public._demo_uuid('b0000000', v_i), v_user_id, v_feed_contents[v_i],
       array[v_img]::text[], '{}'::text[],
       case when v_group_id is not null then 'group' else 'public' end,
       v_group_id, null, 'general', '[]'::jsonb, '[]'::jsonb, null,
+      0, 0, 0,
       v_now - (v_i * 3 || ' hours')::interval, v_now
     )
     on conflict (id) do nothing;
@@ -294,6 +298,7 @@ begin
     insert into public.posts (
       id, author_id, content, images, videos, visibility, group_id,
       title, category, ingredients, steps, cook_time_minutes,
+      like_count, comment_count, share_count,
       created_at, updated_at
     ) values (
       public._demo_uuid('c0000000', v_i), v_user_id,
@@ -309,6 +314,7 @@ begin
       jsonb_build_array('Nguyên liệu 1', 'Nguyên liệu 2', 'Gia vị'),
       jsonb_build_array('Sơ chế nguyên liệu', 'Nấu chín', 'Trình bày'),
       15 + v_i * 3,
+      0, 0, 0,
       v_now - (v_i || ' days')::interval, v_now
     )
     on conflict (id) do nothing;
@@ -320,13 +326,13 @@ begin
   for v_i in 1..15 loop
     insert into public.reels (
       id, user_id, video_url, thumbnail_url, caption,
-      duration_seconds, view_count, created_at, updated_at
+      duration_seconds, view_count, created_at
     ) values (
       public._demo_uuid('e0000000', v_i),
       public._demo_uuid('a0000000', 1 + ((v_i - 1) % 15)),
       v_video, v_thumb, v_feed_contents[v_i],
       30 + v_i * 2, 500 + v_i * 120,
-      v_now - (v_i * 5 || ' hours')::interval, v_now
+      v_now - (v_i * 5 || ' hours')::interval
     )
     on conflict (id) do nothing;
   end loop;
@@ -498,28 +504,40 @@ begin
   end loop;
 
   -- ---------------------------------------------------------------------------
-  -- 14. saved_posts + saved_recipes
+  -- 14. saved_posts + saved_recipes (only if tables exist on instance)
   -- ---------------------------------------------------------------------------
-  for v_i in 1..10 loop
-    insert into public.saved_posts (id, user_id, post_id, collection_name, created_at)
-    values (
-      public._demo_uuid('40000000', v_i),
-      public._demo_uuid('a0000000', v_i),
-      public._demo_uuid('b0000000', v_i),
-      'default',
-      v_now - (v_i || ' days')::interval
-    )
-    on conflict (user_id, post_id) do nothing;
+  if exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'saved_posts'
+  ) then
+    for v_i in 1..10 loop
+      insert into public.saved_posts (id, user_id, post_id, collection_name, created_at)
+      values (
+        public._demo_uuid('40000000', v_i),
+        public._demo_uuid('a0000000', v_i),
+        public._demo_uuid('b0000000', v_i),
+        'default',
+        v_now - (v_i || ' days')::interval
+      )
+      on conflict (user_id, post_id) do nothing;
+    end loop;
+  end if;
 
-    insert into public.saved_recipes (id, user_id, post_id, created_at)
-    values (
-      public._demo_uuid('50000000', v_i),
-      public._demo_uuid('a0000000', 1 + (v_i % 15)),
-      public._demo_uuid('c0000000', v_i),
-      v_now - (v_i || ' days')::interval
-    )
-    on conflict (user_id, post_id) do nothing;
-  end loop;
+  if exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'saved_recipes'
+  ) then
+    for v_i in 1..10 loop
+      insert into public.saved_recipes (id, user_id, post_id, created_at)
+      values (
+        public._demo_uuid('50000000', v_i),
+        public._demo_uuid('a0000000', 1 + (v_i % 15)),
+        public._demo_uuid('c0000000', v_i),
+        v_now - (v_i || ' days')::interval
+      )
+      on conflict (user_id, post_id) do nothing;
+    end loop;
+  end if;
 
   -- ---------------------------------------------------------------------------
   -- 15. notifications — no updated_at column
@@ -589,6 +607,25 @@ begin
   ) po on po.group_id = g2.id
   where g.id = g2.id
     and g.id in (select public._demo_uuid('d0000000', i) from generate_series(1, 10) i);
+
+  update public.posts p
+  set like_count = coalesce(l.cnt, 0)
+  from (
+    select post_id, count(*)::int as cnt
+    from public.post_likes
+    group by post_id
+  ) l
+  where p.id = l.post_id;
+
+  update public.posts p
+  set comment_count = coalesce(c.cnt, 0)
+  from (
+    select post_id, count(*)::int as cnt
+    from public.comments
+    where deleted_at is null
+    group by post_id
+  ) c
+  where p.id = c.post_id;
 
   raise notice 'SnapChef dev seed completed successfully.';
 end;
