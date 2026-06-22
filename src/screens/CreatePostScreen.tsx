@@ -155,9 +155,7 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
     setContent('');
     setDraftHint(false);
     await clearDraft();
-    Alert.alert('Đang xử lý', 'Bài viết đang được đăng ở chế độ nền. Bạn có thể tiếp tục sử dụng ứng dụng.', [
-      { text: 'OK', onPress: () => navigation.goBack() },
-    ]);
+    navigation.goBack();
   };
 
   return (

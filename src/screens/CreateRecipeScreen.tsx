@@ -206,9 +206,7 @@ export const CreateRecipeScreen = ({ navigation }: RootStackScreenProps<'CreateR
       setSteps(['']);
       setImageUris([]);
       
-      Alert.alert('Đang xử lý', 'Công thức đang được tải lên ở chế độ nền. Bạn có thể tiếp tục sử dụng ứng dụng.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      navigation.goBack();
     } catch (err) {
       Alert.alert('Lỗi', err instanceof Error ? err.message : 'Không đăng được');
     } finally {
