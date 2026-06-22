@@ -8,6 +8,7 @@ import { AuthLoadingScreen } from '../components/AuthLoadingScreen';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
+import { OtpVerificationScreen } from '../screens/OtpVerificationScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { ReelsScreen } from '../screens/ReelsScreen';
@@ -93,6 +94,7 @@ export function RootNavigator() {
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
+            <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
           </>
         ) : (
           <Stack.Screen name="MainTabs" component={MainTabs} />

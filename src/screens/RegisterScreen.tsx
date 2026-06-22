@@ -38,8 +38,13 @@ export const RegisterScreen = ({ navigation }: RootStackScreenProps<'Register'>)
 
   const onSubmit = async (values: RegisterInput) => {
     try {
-      await registerUser(values.fullname.trim(), values.email.trim().toLowerCase(), values.password);
-      navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+      const email = values.email.trim().toLowerCase();
+      const result = await registerUser(values.fullname.trim(), email, values.password);
+      if (result.requiresOtp) {
+        navigation.navigate('OtpVerification', { email });
+      } else {
+        navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+      }
     } catch (e) {
       Alert.alert('Đăng ký', e instanceof Error ? e.message : 'Có lỗi xảy ra');
     }

@@ -4,6 +4,7 @@ export type RootStackParamList = {
   Welcome: undefined;
   Login: undefined;
   Register: undefined;
+  OtpVerification: { email: string };
   MainTabs: undefined;
   CreatePost: { groupId?: string } | undefined;
   PostDetail: { postId: string };

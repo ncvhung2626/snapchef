@@ -1,7 +1,10 @@
 import { create } from 'zustand';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { uploadPostImage } from '../services/storageService';
 import { uploadReelVideo } from '../services/reelService';
+import { createPost } from '../services/postService';
+import { invalidateFeedQueries } from '../utils/invalidateFeed';
 
 const QUEUE_KEY = 'snapchef_upload_queue';
 
@@ -13,10 +16,12 @@ export interface UploadTask {
   id: string;
   type: UploadTaskType;
   userId: string;
-  localUri: string;
+  localUri?: string;
+  localUris?: string[];
   status: UploadTaskStatus;
   progress: number;
   resultUrl?: string;
+  resultUrls?: string[];
   error?: string;
   metadata?: Record<string, unknown>;
   createdAt: string;
@@ -46,7 +51,57 @@ async function executeTask(task: UploadTask): Promise<string> {
       }));
     });
   }
-  return uploadPostImage(task.userId, task.localUri);
+  
+  let url = '';
+  const urls: string[] = [];
+
+  const updateProgress = (p: number) => {
+    useUploadQueue.setState((s) => ({
+      tasks: s.tasks.map((t) => (t.id === task.id ? { ...t, progress: p } : t)),
+    }));
+  };
+
+  if (task.localUris && task.localUris.length > 0) {
+    const total = task.localUris.length;
+    const progressMap = new Array(total).fill(0);
+    const uploadPromises = task.localUris.map((uri, index) =>
+      uploadPostImage(task.userId, uri, (p) => {
+        progressMap[index] = p;
+        const overallProgress = progressMap.reduce((a, b) => a + b, 0) / total;
+        updateProgress(overallProgress);
+      })
+    );
+    const uploadedUrls = await Promise.all(uploadPromises);
+    urls.push(...uploadedUrls);
+  } else if (task.localUri) {
+    url = await uploadPostImage(task.userId, task.localUri, updateProgress);
+    urls.push(url);
+  }
+
+  if (task.metadata?.action === 'create_post') {
+    await createPost(task.userId, {
+      content: task.metadata.content as string,
+      imageUris: urls,
+      groupId: task.metadata.groupId as string | undefined,
+      visibility: task.metadata.visibility as any,
+    });
+    invalidateFeedQueries();
+  } else if (task.metadata?.action === 'create_recipe') {
+    const { createRecipe } = await import('../services/postService');
+    await createRecipe(task.userId, {
+      title: task.metadata.title as string,
+      description: task.metadata.description as string,
+      category: task.metadata.category as string,
+      ingredients: task.metadata.ingredients as string[],
+      steps: task.metadata.steps as string[],
+      cookTimeMinutes: task.metadata.cookTimeMinutes as number | undefined,
+      imageUris: urls,
+      groupId: task.metadata.groupId as string | undefined,
+    });
+    invalidateFeedQueries();
+  }
+
+  return url;
 }
 
 export const useUploadQueue = create<UploadQueueState>((set, get) => ({
@@ -120,6 +175,9 @@ export const useUploadQueue = create<UploadQueueState>((set, get) => ({
           t.id === next.id ? { ...t, status: 'completed', progress: 100, resultUrl: url } : t
         ),
       }));
+      if (next.metadata?.action === 'create_post' || next.metadata?.action === 'create_recipe') {
+        Alert.alert('Thành công', 'Bài viết của bạn đã được đăng!');
+      }
     } catch (err) {
       set((s) => ({
         tasks: s.tasks.map((t) =>
@@ -128,6 +186,9 @@ export const useUploadQueue = create<UploadQueueState>((set, get) => ({
             : t
         ),
       }));
+      if (next.metadata?.action === 'create_post' || next.metadata?.action === 'create_recipe') {
+        Alert.alert('Lỗi đăng bài', err instanceof Error ? err.message : 'Upload failed');
+      }
     } finally {
       set({ processing: false });
       await persistTasks(get().tasks);

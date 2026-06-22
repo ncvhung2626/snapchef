@@ -25,15 +25,22 @@ export async function register(
   fullname: string,
   email: string,
   password: string
-): Promise<AuthPayload> {
+): Promise<{ requiresOtp: boolean; payload?: AuthPayload }> {
   assertSupabaseConfigured();
   const { data, error } = await authRepository.signUp(email, password, fullname);
   if (error) throw new Error(error.message);
   if (!data.session) {
-    throw new Error(
-      'Đăng ký thành công. Kiểm tra email xác nhận — hoặc tắt "Confirm email" trong Supabase Dashboard.'
-    );
+    return { requiresOtp: true };
   }
+  const profile = await authRepository.fetchProfileByUserId(data.user!.id);
+  return { requiresOtp: false, payload: payloadFromSession(data.session, profile) };
+}
+
+export async function verifyOtp(email: string, token: string): Promise<AuthPayload> {
+  assertSupabaseConfigured();
+  const { data, error } = await getSupabase().auth.verifyOtp({ email, token, type: 'signup' });
+  if (error) throw new Error(error.message);
+  if (!data.session) throw new Error('Xác thực thất bại');
   const profile = await authRepository.fetchProfileByUserId(data.user!.id);
   return payloadFromSession(data.session, profile);
 }
