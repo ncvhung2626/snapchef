@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { Feather } from '@expo/vector-icons';
 import { AppHeader } from '../components/AppHeader';
 import { useAuth } from '../context/AuthContext';
@@ -22,6 +23,7 @@ import { hasPermission } from '../utils/permissions';
 import { createPost } from '../services/postService';
 import { usePostStore } from '../store/postStore';
 import { invalidateFeedQueries } from '../utils/invalidateFeed';
+import { useUploadQueue } from '../lib/uploadQueue';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
@@ -35,7 +37,7 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
   const clearDraft = usePostStore((s) => s.clearDraft);
   const loadDraft = usePostStore((s) => s.loadDraft);
   const [content, setContent] = useState('');
-  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageUris, setImageUris] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [draftHint, setDraftHint] = useState(false);
 
@@ -71,7 +73,11 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
     }
   }, [content, setDraft, clearDraft]);
 
-  const pickImage = async () => {
+  const pickImages = async () => {
+    if (imageUris.length >= 10) {
+      Alert.alert('Giới hạn', 'Chỉ được chọn tối đa 10 ảnh');
+      return;
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Quyền truy cập', 'Cần quyền thư viện ảnh để đăng hình.');
@@ -79,12 +85,51 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: 10 - imageUris.length,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets) {
+      const newUris: string[] = [];
+      for (const asset of result.assets) {
+        const manipResult = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [{ resize: { width: 1080 } }],
+          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        newUris.push(manipResult.uri);
+      }
+      setImageUris((prev) => [...prev, ...newUris].slice(0, 10));
+    }
+  };
+
+  const takePhoto = async () => {
+    if (imageUris.length >= 10) {
+      Alert.alert('Giới hạn', 'Chỉ được chụp tối đa 10 ảnh');
+      return;
+    }
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Quyền truy cập', 'Cần quyền máy ảnh để chụp hình.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
+      const manipResult = await ImageManipulator.manipulateAsync(
+        result.assets[0].uri,
+        [{ resize: { width: 1080 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      setImageUris((prev) => [...prev, manipResult.uri].slice(0, 10));
     }
+  };
+
+  const removeImage = (index: number) => {
+    setImageUris((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
@@ -93,26 +138,26 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
       Alert.alert('Lỗi', 'Nhập nội dung bài viết');
       return;
     }
-    setSubmitting(true);
-    try {
-      await createPost(user._id, {
+    
+    useUploadQueue.getState().enqueue({
+      id: Date.now().toString(),
+      type: 'image',
+      userId: user._id,
+      localUris: imageUris,
+      metadata: {
+        action: 'create_post',
         content,
-        imageUri: imageUri ?? undefined,
         groupId,
         visibility: groupId ? 'group' : 'public',
-      });
-      setContent('');
-      setDraftHint(false);
-      await clearDraft();
-      invalidateFeedQueries();
-      Alert.alert('Thành công', 'Đã đăng bài', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-    } catch (e) {
-      Alert.alert('Lỗi', e instanceof Error ? e.message : 'Không đăng được bài');
-    } finally {
-      setSubmitting(false);
-    }
+      }
+    });
+
+    setContent('');
+    setDraftHint(false);
+    await clearDraft();
+    Alert.alert('Đang xử lý', 'Bài viết đang được đăng ở chế độ nền. Bạn có thể tiếp tục sử dụng ứng dụng.', [
+      { text: 'OK', onPress: () => navigation.goBack() },
+    ]);
   };
 
   return (
@@ -140,20 +185,28 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
             />
           </View>
 
-          <TouchableOpacity style={styles.imageUpload} onPress={pickImage}>
-            {imageUri ? (
-              <Image source={{ uri: imageUri }} style={styles.previewImage} />
-            ) : (
-              <>
-                <Feather name="image" size={32} color={colors.primary} />
-                <Text style={styles.uploadText}>Thêm ảnh món ăn</Text>
-              </>
-            )}
-          </TouchableOpacity>
-          {imageUri && (
-            <TouchableOpacity onPress={() => setImageUri(null)}>
-              <Text style={styles.removeImage}>Xóa ảnh</Text>
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.actionButton} onPress={pickImages}>
+              <Feather name="image" size={24} color={colors.primary} />
+              <Text style={styles.actionText}>Thư viện ({imageUris.length}/10)</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={takePhoto}>
+              <Feather name="camera" size={24} color={colors.primary} />
+              <Text style={styles.actionText}>Chụp ảnh</Text>
+            </TouchableOpacity>
+          </View>
+
+          {imageUris.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
+              {imageUris.map((uri, index) => (
+                <View key={index} style={styles.imagePreviewContainer}>
+                  <Image source={{ uri }} style={styles.previewImage} />
+                  <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeImage(index)}>
+                    <Feather name="x" size={16} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
           )}
         </ScrollView>
 
@@ -199,20 +252,48 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     borderColor: colors.surfaceVariant,
   },
   textInput: { ...typography.bodyLg, color: colors.onSurface, flex: 1, textAlignVertical: 'top' },
-  imageUpload: {
-    minHeight: 160,
-    backgroundColor: colors.primaryContainer,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.primary,
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    backgroundColor: colors.primaryContainer,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    gap: spacing.sm,
   },
-  previewImage: { width: '100%', height: 200, borderRadius: radius.md },
-  uploadText: { ...typography.labelMd, color: colors.primary, marginTop: spacing.sm },
-  removeImage: { ...typography.bodyMd, color: colors.error, textAlign: 'center', marginTop: spacing.sm },
+  actionText: { ...typography.labelMd, color: colors.primary },
+  imageScroll: {
+    marginBottom: spacing.lg,
+  },
+  imagePreviewContainer: {
+    width: 120,
+    height: 120,
+    marginRight: spacing.sm,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  previewImage: { width: '100%', height: '100%' },
+  removeImageBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   footer: {
     padding: spacing.lg,
     paddingBottom: spacing['2xl'],

@@ -1,6 +1,7 @@
 import { getSupabase, assertSupabaseConfigured } from '../lib/supabase';
 import type { Reel, User, UserRole } from '../types/models';
 import * as reelRepo from '../repositories/reel.repository';
+import { File } from 'expo-file-system';
 
 export const MAX_VIDEO_DURATION_SEC = 120;
 
@@ -130,11 +131,11 @@ export async function uploadReelVideo(
   onProgress?.(10);
   const ext = localUri.split('.').pop()?.toLowerCase() || 'mp4';
   const path = `${userId}/${Date.now()}.${ext}`;
-  const response = await fetch(localUri);
-  const blob = await response.blob();
+  const file = new File(localUri);
+  const arrayBuffer = await file.arrayBuffer();
   onProgress?.(40);
-  const { error } = await supabase.storage.from('reel-videos').upload(path, blob, {
-    contentType: blob.type || 'video/mp4',
+  const { error } = await supabase.storage.from('reel-videos').upload(path, arrayBuffer, {
+    contentType: `video/${ext === 'mov' ? 'quicktime' : 'mp4'}`,
     upsert: false,
   });
   if (error) throw new Error(error.message);

@@ -10,7 +10,8 @@ interface AuthContextValue {
   isBootstrapping: boolean;
   isSupabaseReady: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (fullname: string, email: string, password: string) => Promise<void>;
+  register: (fullname: string, email: string, password: string) => Promise<{ requiresOtp: boolean }>;
+  verifyOtp: (email: string, token: string) => Promise<void>;
   logout: () => Promise<void>;
   loginWithGoogle: () => Promise<boolean>;
   refreshProfile: () => Promise<void>;
@@ -90,7 +91,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = useCallback(async (fullname: string, email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { user: u } = await authService.register(fullname, email, password);
+      const result = await authService.register(fullname, email, password);
+      if (!result.requiresOtp && result.payload) {
+        setUser(result.payload.user);
+      }
+      return result;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setUser]);
+
+  const verifyOtp = useCallback(async (email: string, token: string) => {
+    setIsLoading(true);
+    try {
+      const { user: u } = await authService.verifyOtp(email, token);
       setUser(u);
     } finally {
       setIsLoading(false);
@@ -122,12 +136,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isSupabaseReady: isSupabaseConfigured,
       login,
       register,
+      verifyOtp,
       logout,
       loginWithGoogle,
       refreshProfile,
       setUser,
     }),
-    [user, isLoading, isBootstrapping, login, register, logout, loginWithGoogle, refreshProfile, setUser]
+    [user, isLoading, isBootstrapping, login, register, verifyOtp, logout, loginWithGoogle, refreshProfile, setUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

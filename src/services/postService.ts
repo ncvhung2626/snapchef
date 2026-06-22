@@ -149,7 +149,7 @@ export async function getPostById(postId: string, currentUserId?: string): Promi
 
 export interface CreatePostInput {
   content: string;
-  imageUri?: string;
+  imageUris?: string[];
   groupId?: string;
   visibility?: Post['visibility'];
 }
@@ -161,7 +161,7 @@ export interface CreateRecipeInput {
   ingredients: string[];
   steps: string[];
   cookTimeMinutes?: number;
-  imageUri?: string;
+  imageUris?: string[];
   groupId?: string;
 }
 
@@ -179,8 +179,14 @@ export interface UpdateRecipeInput {
 export async function createPost(authorId: string, input: CreatePostInput): Promise<Post> {
   assertSupabaseConfigured();
   const images: string[] = [];
-  if (input.imageUri) {
-    images.push(await uploadPostImage(authorId, input.imageUri));
+  if (input.imageUris && input.imageUris.length > 0) {
+    for (const uri of input.imageUris) {
+      if (uri.startsWith('http')) {
+        images.push(uri);
+      } else {
+        images.push(await uploadPostImage(authorId, uri));
+      }
+    }
   }
 
   const { data, error } = await getSupabase()
@@ -203,8 +209,14 @@ export async function createPost(authorId: string, input: CreatePostInput): Prom
 export async function createRecipe(authorId: string, input: CreateRecipeInput): Promise<Post> {
   assertSupabaseConfigured();
   const images: string[] = [];
-  if (input.imageUri) {
-    images.push(await uploadPostImage(authorId, input.imageUri));
+  if (input.imageUris && input.imageUris.length > 0) {
+    for (const uri of input.imageUris) {
+      if (uri.startsWith('http')) {
+        images.push(uri);
+      } else {
+        images.push(await uploadPostImage(authorId, uri));
+      }
+    }
   }
 
   const { data, error } = await getSupabase()
