@@ -13,7 +13,7 @@ export const VerifyPasswordOtpScreen = ({
   const [token, setToken] = useState('');
 
   const handleNext = () => {
-    if (token.length < 8) return;
+    if (token.length < 6) return;
     // Just navigate to the next screen passing the token
     navigation.navigate('CreateNewPassword', { email, token });
   };
@@ -21,15 +21,15 @@ export const VerifyPasswordOtpScreen = ({
   return (
     <AuthLayout
       title="Nhập mã OTP"
-      subtitle={`Mã xác nhận gồm 8 số đã được gửi đến email ${email}. Vui lòng kiểm tra hộp thư của bạn.`}
+      subtitle={`Mã xác nhận gồm 6 số đã được gửi đến email ${email}. Vui lòng kiểm tra hộp thư của bạn.`}
       onBack={() => navigation.navigate('Login')}
     >
-      <OtpInput value={token} onChangeText={setToken} length={8} />
+      <OtpInput value={token} onChangeText={setToken} length={6} />
 
       <PrimaryButton 
         label="Tiếp tục" 
         onPress={handleNext} 
-        disabled={token.length < 8} 
+        disabled={token.length < 6} 
         style={{ marginTop: 24 }} 
       />
     </AuthLayout>
