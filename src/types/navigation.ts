@@ -17,6 +17,8 @@ export type RootStackParamList = {
   Chat: { conversationId: string; title?: string; isGroupChat?: boolean };
   NewChat: undefined;
   ForgotPassword: undefined;
+  VerifyPasswordOtp: { email: string };
+  CreateNewPassword: { email: string; token: string };
   CreateRecipe: undefined;
   SavedRecipes: undefined;
   Reels: undefined;

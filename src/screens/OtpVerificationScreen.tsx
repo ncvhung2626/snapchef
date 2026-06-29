@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { AuthLayout } from '../components/AuthLayout';
-import { AuthTextField } from '../components/AuthTextField';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { OtpInput } from '../components/OtpInput';
 import { useTheme } from '../theme/ThemeContext';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
@@ -18,8 +18,8 @@ export const OtpVerificationScreen = ({ route, navigation }: RootStackScreenProp
   const [token, setToken] = useState('');
 
   const onSubmit = async () => {
-    if (!token || token.length < 6) {
-      Alert.alert('Lỗi', 'Vui lòng nhập mã xác thực gồm 6 chữ số');
+    if (token.length < 8) {
+      Alert.alert('Lỗi', 'Vui lòng nhập đủ 8 số mã xác thực OTP');
       return;
     }
     try {
@@ -36,14 +36,7 @@ export const OtpVerificationScreen = ({ route, navigation }: RootStackScreenProp
       subtitle={`Mã xác nhận (OTP) đã được gửi đến email ${email}. Vui lòng kiểm tra hộp thư (và thư rác) để hoàn tất đăng ký.`}
       onBack={() => navigation.goBack()}
     >
-      <AuthTextField
-        label="Mã OTP"
-        placeholder="Nhập mã 6 số"
-        keyboardType="number-pad"
-        value={token}
-        onChangeText={setToken}
-        maxLength={6}
-      />
+      <OtpInput value={token} onChangeText={setToken} length={8} />
 
       <PrimaryButton 
         label="Xác thực" 
