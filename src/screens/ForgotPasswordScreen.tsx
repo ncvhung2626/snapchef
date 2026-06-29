@@ -23,11 +23,7 @@ export const ForgotPasswordScreen = ({
     setLoading(true);
     try {
       await authService.requestPasswordReset(email);
-      Alert.alert(
-        'Đã gửi email',
-        'Kiểm tra hộp thư để đặt lại mật khẩu (kể cả thư mục Spam).',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      navigation.navigate('VerifyPasswordOtp', { email });
     } catch (err) {
       Alert.alert('Lỗi', err instanceof Error ? err.message : 'Không gửi được email');
     } finally {
@@ -38,8 +34,8 @@ export const ForgotPasswordScreen = ({
   return (
     <AuthLayout
       title="Quên mật khẩu?"
-      subtitle="Nhập email đã đăng ký — chúng tôi gửi link đặt lại mật khẩu."
-      onBack={() => navigation.goBack()}
+      subtitle="Nhập email đã đăng ký — chúng tôi sẽ gửi mã xác nhận (OTP) để đặt lại mật khẩu."
+      onBack={() => navigation.navigate('Login')}
     >
       <AuthTextField
         label="Email"
