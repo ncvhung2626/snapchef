@@ -18,8 +18,8 @@ export const OtpVerificationScreen = ({ route, navigation }: RootStackScreenProp
   const [token, setToken] = useState('');
 
   const onSubmit = async () => {
-    if (token.length < 8) {
-      Alert.alert('Lỗi', 'Vui lòng nhập đủ 8 số mã xác thực OTP');
+    if (token.length < 6) {
+      Alert.alert('Lỗi', 'Vui lòng nhập đủ 6 số mã xác thực OTP');
       return;
     }
     try {
@@ -36,7 +36,7 @@ export const OtpVerificationScreen = ({ route, navigation }: RootStackScreenProp
       subtitle={`Mã xác nhận (OTP) đã được gửi đến email ${email}. Vui lòng kiểm tra hộp thư (và thư rác) để hoàn tất đăng ký.`}
       onBack={() => navigation.goBack()}
     >
-      <OtpInput value={token} onChangeText={setToken} length={8} />
+      <OtpInput value={token} onChangeText={setToken} length={6} />
 
       <PrimaryButton 
         label="Xác thực" 

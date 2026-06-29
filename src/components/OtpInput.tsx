@@ -11,7 +11,7 @@ interface OtpInputProps {
   length?: number;
 }
 
-export const OtpInput = ({ value, onChangeText, length = 8 }: OtpInputProps) => {
+export const OtpInput = ({ value, onChangeText, length = 6 }: OtpInputProps) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const inputRef = useRef<TextInput>(null);
