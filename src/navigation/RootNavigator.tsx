@@ -13,6 +13,8 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { ReelsScreen } from '../screens/ReelsScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
+import { VerifyPasswordOtpScreen } from '../screens/VerifyPasswordOtpScreen';
+import { CreateNewPasswordScreen } from '../screens/CreateNewPasswordScreen';
 import { CreateRecipeScreen } from '../screens/CreateRecipeScreen';
 import { SavedRecipesScreen } from '../screens/SavedRecipesScreen';
 import { InboxScreen } from '../screens/InboxScreen';
@@ -95,6 +97,9 @@ export function RootNavigator() {
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
             <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            <Stack.Screen name="VerifyPasswordOtp" component={VerifyPasswordOtpScreen} />
+            <Stack.Screen name="CreateNewPassword" component={CreateNewPasswordScreen} />
           </>
         ) : (
           <Stack.Screen name="MainTabs" component={MainTabs} />
@@ -117,7 +122,6 @@ export function RootNavigator() {
         />
         <Stack.Screen name="Chat" component={ChatScreen} />
         <Stack.Screen name="NewChat" component={NewChatScreen} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen
           name="CreateRecipe"
           component={CreateRecipeScreen}

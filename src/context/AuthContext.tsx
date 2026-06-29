@@ -12,6 +12,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (fullname: string, email: string, password: string) => Promise<{ requiresOtp: boolean }>;
   verifyOtp: (email: string, token: string) => Promise<void>;
+  resetPassword: (email: string, token: string, newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
   loginWithGoogle: () => Promise<boolean>;
   refreshProfile: () => Promise<void>;
@@ -111,6 +112,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [setUser]);
 
+  const resetPassword = useCallback(async (email: string, token: string, newPassword: string) => {
+    setIsLoading(true);
+    try {
+      const { user: u } = await authService.resetPasswordWithOtp(email, token, newPassword);
+      setUser(u);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setUser]);
+
   const refreshProfile = useCallback(async () => {
     const u = await authService.getProfile();
     setUser(u);
@@ -137,12 +148,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
       verifyOtp,
+      resetPassword,
       logout,
       loginWithGoogle,
       refreshProfile,
       setUser,
     }),
-    [user, isLoading, isBootstrapping, login, register, verifyOtp, logout, loginWithGoogle, refreshProfile, setUser]
+    [user, isLoading, isBootstrapping, login, register, verifyOtp, resetPassword, logout, loginWithGoogle, refreshProfile, setUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -45,6 +45,19 @@ export async function verifyOtp(email: string, token: string): Promise<AuthPaylo
   return payloadFromSession(data.session, profile);
 }
 
+export async function resetPasswordWithOtp(email: string, token: string, newPassword: string): Promise<AuthPayload> {
+  assertSupabaseConfigured();
+  const { data, error } = await getSupabase().auth.verifyOtp({ email, token, type: 'recovery' });
+  if (error) throw new Error(error.message);
+  if (!data.session) throw new Error('Xác thực thất bại');
+  
+  const { error: updateError } = await getSupabase().auth.updateUser({ password: newPassword });
+  if (updateError) throw new Error(updateError.message);
+  
+  const profile = await authRepository.fetchProfileByUserId(data.user!.id);
+  return payloadFromSession(data.session, profile);
+}
+
 export async function login(email: string, password: string): Promise<AuthPayload> {
   assertSupabaseConfigured();
   const { data, error } = await authRepository.signInWithPassword(email, password);
