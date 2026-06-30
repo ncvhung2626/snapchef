@@ -23,6 +23,7 @@ interface PostRow {
   cook_time_minutes?: number | null;
   created_at: string;
   updated_at: string;
+  location?: { name: string; latitude?: number; longitude?: number } | null;
   profiles?: unknown;
   post_likes?: { user_id: string }[];
 }
@@ -71,6 +72,7 @@ async function mapRowsToPosts(rows: PostRow[], userId?: string): Promise<Post[]>
       steps: r.steps ?? undefined,
       cookTimeMinutes: r.cook_time_minutes ?? undefined,
       isRecipe: Boolean(r.title || (r.steps && r.steps.length)),
+      location: r.location ?? undefined,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
     } satisfies Post;

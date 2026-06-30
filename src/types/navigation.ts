@@ -7,7 +7,7 @@ export type RootStackParamList = {
   OtpVerification: { email: string };
   MainTabs: undefined;
   CreatePost: { groupId?: string } | undefined;
-  PostDetail: { postId: string };
+  PostDetail: { postId: string; initialImageIndex?: number };
   Comment: { postId: string };
   GroupDetail: { groupId: string };
   CreateGroup: undefined;

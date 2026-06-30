@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,18 @@ import {
   TouchableOpacity,
   Share,
   Alert,
+  ScrollView,
+  Linking,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
+import { deletePost } from '../services/postService';
+import { invalidateFeedQueries } from '../utils/invalidateFeed';
+import { PostActionSheet } from './PostActionSheet';
 import type { RootStackParamList } from '../types/navigation';
 import type { UserRole } from '../types/models';
 import { useTheme } from '../theme/ThemeContext';
@@ -33,8 +39,11 @@ export interface PostCardProps {
   title?: string;
   content: string;
   hashtags?: string[];
-  imageUrl?: string;
+  imageUrls?: string[];
   videoUrl?: string;
+  locationName?: string;
+  locationLat?: number;
+  locationLng?: number;
   likesCount?: number;
   commentsCount?: number;
   savesCount?: number;
@@ -63,8 +72,11 @@ export const PostCard = React.memo(function PostCard({
   title,
   content,
   hashtags = [],
-  imageUrl,
+  imageUrls = [],
   videoUrl,
+  locationName,
+  locationLat,
+  locationLng,
   likesCount = 0,
   commentsCount = 0,
   savesCount = 0,
@@ -76,10 +88,22 @@ export const PostCard = React.memo(function PostCard({
   style,
 }: PostCardProps) {
   const { colors } = useTheme();
+  const { user } = useAuth();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
 
-  const openDetail = () => navigation.getParent()?.navigate('PostDetail', { postId });
+  const openDetail = (initialImageIndex: number = 0) => {
+    navigation.getParent()?.navigate('PostDetail', { postId, initialImageIndex });
+  };
+
+  const handleOpenMap = () => {
+    if (locationLat && locationLng) {
+      const url = `https://www.google.com/maps/search/?api=1&query=${locationLat},${locationLng}`;
+      Linking.openURL(url).catch(() => Alert.alert('Lỗi', 'Không thể mở bản đồ.'));
+    }
+  };
+
   const openAuthor = () => {
     if (authorId) navigation.getParent()?.navigate('UserProfile', { userId: authorId });
   };
@@ -94,12 +118,31 @@ export const PostCard = React.memo(function PostCard({
     }
   };
 
-  const handleMenu = () => {
-    Alert.alert('Tùy chọn', undefined, [
-      { text: 'Xem chi tiết', onPress: openDetail },
-      { text: 'Báo cáo', style: 'destructive', onPress: () => Alert.alert('Đã ghi nhận', 'Cảm ơn bạn đã báo cáo.') },
+  const handleDelete = () => {
+    Alert.alert('Xóa bài viết', 'Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác.', [
       { text: 'Hủy', style: 'cancel' },
+      { 
+        text: 'Xóa', 
+        style: 'destructive',
+        onPress: async () => {
+          if (!user) return;
+          try {
+            await deletePost(postId, user._id);
+            invalidateFeedQueries();
+          } catch (error: any) {
+            Alert.alert('Lỗi', error.message || 'Không thể xóa bài viết');
+          }
+        }
+      }
     ]);
+  };
+
+  const handleMenu = () => {
+    setActionSheetVisible(true);
+  };
+
+  const handleReport = () => {
+    Alert.alert('Đã ghi nhận', 'Cảm ơn bạn đã báo cáo. Chúng tôi sẽ xem xét bài viết này.');
   };
 
   const hasStats = likesCount > 0 || commentsCount > 0 || savesCount > 0 || sharesCount > 0;
@@ -117,15 +160,24 @@ export const PostCard = React.memo(function PostCard({
           )}
           <View style={styles.headerText}>
             <View style={styles.nameRow}>
-              <Text style={styles.author} numberOfLines={1}>{author}</Text>
-              <View style={styles.roleBadge}>
-                <Text style={styles.roleText}>{getRoleLabel(authorRole)}</Text>
-              </View>
+              <Text style={styles.author} numberOfLines={locationName ? 2 : 1}>
+                {author}
+                {locationName && (
+                  <Text style={styles.isAtText}>
+                    <Text style={{ fontWeight: 'normal' }}> đang ở </Text>
+                    <Text style={styles.locationBold} onPress={handleOpenMap}>{locationName}</Text>
+                  </Text>
+                )}
+              </Text>
             </View>
-            {authorUsername ? (
+            {authorUsername && !locationName ? (
               <Text style={styles.username}>@{authorUsername}</Text>
             ) : null}
-            <Text style={styles.time}>{time}</Text>
+            <View style={styles.timeLocationRow}>
+              <Text style={styles.time}>{time}</Text>
+              <Text style={styles.dotSeparator}>•</Text>
+              <Feather name="globe" size={10} color={colors.onSurfaceVariant} />
+            </View>
           </View>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuBtn} onPress={handleMenu} hitSlop={8}>
@@ -133,7 +185,7 @@ export const PostCard = React.memo(function PostCard({
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity activeOpacity={0.95} onPress={openDetail}>
+      <TouchableOpacity activeOpacity={0.9} onPress={() => openDetail(0)}>
         {title ? <Text style={styles.postTitle}>{title}</Text> : null}
         <Text style={styles.content} numberOfLines={6}>{content}</Text>
         {hashtags.length > 0 && (
@@ -143,18 +195,36 @@ export const PostCard = React.memo(function PostCard({
             ))}
           </View>
         )}
-        {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
-        ) : null}
-        {videoUrl && !imageUrl ? (
+      </TouchableOpacity>
+
+      {imageUrls && imageUrls.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.imageScrollContainer}
+          snapToInterval={280 + spacing.sm}
+          decelerationRate="fast"
+          nestedScrollEnabled={true}
+          keyboardShouldPersistTaps="handled"
+        >
+          {imageUrls.map((url, index) => (
+            <TouchableOpacity key={index} activeOpacity={0.9} onPress={() => openDetail(index)}>
+              <Image source={{ uri: url }} style={styles.imageItem} resizeMode="cover" />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : null}
+
+      {videoUrl && imageUrls.length === 0 ? (
+        <TouchableOpacity activeOpacity={0.9} onPress={() => openDetail(0)}>
           <View style={styles.videoWrap}>
             <Image source={{ uri: videoUrl }} style={styles.image} resizeMode="cover" />
             <View style={styles.playOverlay}>
               <Feather name="play-circle" size={48} color="#fff" />
             </View>
           </View>
-        ) : null}
-      </TouchableOpacity>
+        </TouchableOpacity>
+      ) : null}
 
       {hasStats && (
         <View style={styles.statsRow}>
@@ -190,6 +260,15 @@ export const PostCard = React.memo(function PostCard({
           <Text style={styles.actionText}>Chia sẻ</Text>
         </TouchableOpacity>
       </View>
+
+      <PostActionSheet
+        visible={actionSheetVisible}
+        onClose={() => setActionSheetVisible(false)}
+        isOwner={user?._id === authorId}
+        onDelete={handleDelete}
+        onEdit={() => Alert.alert('Thông báo', 'Tính năng sửa bài đang được phát triển')}
+        onReport={handleReport}
+      />
     </View>
   );
 });
@@ -227,7 +306,9 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     },
     headerText: { flex: 1 },
     nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
-    author: { ...typography.bodyMd, fontWeight: '700', color: colors.onSurface, maxWidth: '70%' },
+    author: { ...typography.bodyMd, fontWeight: '700', color: colors.onSurface, flexShrink: 1 },
+    isAtText: { ...typography.bodyMd, color: colors.onSurfaceVariant, fontWeight: '400' },
+    locationBold: { ...typography.bodyMd, color: colors.onSurface, fontWeight: '700' },
     roleBadge: {
       backgroundColor: colors.primaryContainer,
       paddingHorizontal: spacing.sm,
@@ -236,7 +317,11 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     },
     roleText: { ...typography.labelMd, fontSize: 10, color: colors.onPrimaryContainer, fontWeight: '600' },
     username: { ...typography.labelMd, color: colors.onSurfaceVariant, fontSize: 12 },
-    time: { ...typography.labelMd, color: colors.onSurfaceVariant, marginTop: 2 },
+    timeLocationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+    time: { ...typography.labelMd, color: colors.onSurfaceVariant, fontSize: 12 },
+    dotSeparator: { marginHorizontal: 4, color: colors.onSurfaceVariant, fontSize: 10 },
+    locationWrapper: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
+    location: { ...typography.labelMd, color: colors.primary, fontSize: 11, marginLeft: 2 },
     menuBtn: { padding: spacing.xs },
     postTitle: {
       ...typography.headlineMd,
@@ -258,6 +343,17 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       marginTop: spacing.sm,
     },
     hashtag: { ...typography.labelMd, color: colors.primary, fontWeight: '600' },
+    imageScrollContainer: {
+      paddingHorizontal: spacing.md,
+      gap: spacing.sm,
+      marginTop: spacing.md,
+    },
+    imageItem: {
+      width: 280,
+      height: 320,
+      borderRadius: radius.lg,
+      backgroundColor: colors.surfaceContainerLow,
+    },
     image: {
       width: '100%',
       height: 220,

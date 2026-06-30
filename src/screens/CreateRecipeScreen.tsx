@@ -14,6 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Feather } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as Location from 'expo-location';
+import type { LocationData } from '../types/models';
 import { useUploadQueue } from '../lib/uploadQueue';
 import type { RootStackScreenProps } from '../types/navigation';
 import { useAuth } from '../context/AuthContext';
@@ -41,6 +43,7 @@ export const CreateRecipeScreen = ({ navigation }: RootStackScreenProps<'CreateR
   const [ingredients, setIngredients] = useState(['']);
   const [steps, setSteps] = useState(['']);
   const [imageUris, setImageUris] = useState<string[]>([]);
+  const [location, setLocation] = useState<LocationData | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -137,6 +140,54 @@ export const CreateRecipeScreen = ({ navigation }: RootStackScreenProps<'CreateR
   const removeImage = (index: number) => {
     setImageUris((prev) => prev.filter((_, i) => i !== index));
   };
+
+  const handleCheckIn = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Quyền truy cập', 'Cần quyền vị trí để check-in.');
+        return;
+      }
+      
+      let loc = null;
+      try {
+        loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      } catch (err) {
+        loc = await Location.getLastKnownPositionAsync({});
+      }
+
+      if (!loc) {
+         Alert.alert('Lỗi định vị', 'Thiết bị của bạn không thể xác định vị trí hiện tại. Vui lòng bật GPS và thử lại.');
+         return;
+      }
+
+      const [address] = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude
+      });
+      
+      if (address) {
+        const name = [address.city || address.subregion, address.region || address.country]
+          .filter(Boolean)
+          .join(', ');
+        
+        setLocation({
+          name: name || 'Vị trí không xác định',
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude
+        });
+      } else {
+        setLocation({
+          name: 'Vị trí không xác định',
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude
+        });
+      }
+    } catch (e: any) {
+      Alert.alert('Lỗi định vị', e?.message || 'Hệ thống bản đồ đang bận, vui lòng thử lại sau.');
+    }
+  };
+
   const updateList = (
     list: string[],
     setList: React.Dispatch<React.SetStateAction<string[]>>,
@@ -196,6 +247,7 @@ export const CreateRecipeScreen = ({ navigation }: RootStackScreenProps<'CreateR
           ingredients,
           steps,
           cookTimeMinutes: cookTime ? parseInt(cookTime, 10) : undefined,
+          location,
         }
       });
 
@@ -278,14 +330,28 @@ export const CreateRecipeScreen = ({ navigation }: RootStackScreenProps<'CreateR
 
             <View style={styles.actionRow}>
               <TouchableOpacity style={styles.actionButton} onPress={pickImages}>
-                <Feather name="image" size={24} color={colors.primary} />
+                <Feather name="image" size={20} color={colors.primary} />
                 <Text style={styles.actionText}>Thư viện ({imageUris.length}/10)</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionButton} onPress={takePhoto}>
-                <Feather name="camera" size={24} color={colors.primary} />
-                <Text style={styles.actionText}>Chụp ảnh</Text>
+                <Feather name="camera" size={20} color={colors.primary} />
+                <Text style={styles.actionText}>Chụp</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton} onPress={handleCheckIn}>
+                <Feather name="map-pin" size={20} color={colors.primary} />
+                <Text style={styles.actionText}>Check-in</Text>
               </TouchableOpacity>
             </View>
+
+            {location && (
+              <View style={styles.locationContainer}>
+                <Feather name="map-pin" size={16} color={colors.primary} />
+                <Text style={styles.locationText} numberOfLines={1}>{location.name}</Text>
+                <TouchableOpacity onPress={() => setLocation(null)}>
+                  <Feather name="x" size={16} color={colors.onSurfaceVariant} />
+                </TouchableOpacity>
+              </View>
+            )}
 
             {imageUris.length > 0 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
@@ -468,6 +534,20 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  locationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primaryContainer,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  locationText: {
+    ...typography.bodyMd,
+    color: colors.primary,
+    flex: 1,
   },
 });
 }

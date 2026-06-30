@@ -250,7 +250,7 @@ export const GroupDetailScreen = ({ navigation, route }: any) => {
             title={item.title}
             content={item.content}
             hashtags={item.hashtags}
-            imageUrl={item.images[0]}
+            imageUrls={item.images}
             likesCount={item.likes.length}
             commentsCount={item.commentsCount}
             sharesCount={item.shares}
