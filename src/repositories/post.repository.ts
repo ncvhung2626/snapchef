@@ -78,25 +78,12 @@ export async function updatePost(
 
 export async function deletePost(postId: string, authorId: string) {
   const supabase = getSupabase();
-  const soft = await supabase
-    .from('posts')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', postId)
-    .eq('author_id', authorId);
-
-  if (!soft.error) return;
-
-  const hard = await supabase.from('posts').delete().eq('id', postId).eq('author_id', authorId);
-  assertNoError(hard.error);
+  const { error } = await supabase.from('posts').delete().eq('id', postId).eq('author_id', authorId);
+  assertNoError(error);
 }
 
 export async function deletePostAsModerator(postId: string) {
   const supabase = getSupabase();
-  const soft = await supabase
-    .from('posts')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', postId);
-  if (!soft.error) return;
-  const hard = await supabase.from('posts').delete().eq('id', postId);
-  assertNoError(hard.error);
+  const { error } = await supabase.from('posts').delete().eq('id', postId);
+  assertNoError(error);
 }

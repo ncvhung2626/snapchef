@@ -14,6 +14,12 @@ export interface User {
   updatedAt: string;
 }
 
+export interface LocationData {
+  name: string;
+  latitude?: number;
+  longitude?: number;
+}
+
 export interface Post {
   _id: string;
   author: User;
@@ -33,6 +39,7 @@ export interface Post {
   cookTimeMinutes?: number;
   isRecipe?: boolean;
   isSaved?: boolean;
+  location?: LocationData;
   createdAt: string;
   updatedAt: string;
 }

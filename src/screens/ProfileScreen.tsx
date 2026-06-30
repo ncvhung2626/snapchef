@@ -203,7 +203,7 @@ export const ProfileScreen = () => {
               title={post.title}
               content={post.content}
               hashtags={post.hashtags}
-              imageUrl={post.images[0]}
+              imageUrls={post.images}
               videoUrl={post.videos[0]}
               likesCount={post.likes.length}
               commentsCount={post.commentsCount}

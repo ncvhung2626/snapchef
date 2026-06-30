@@ -100,7 +100,7 @@ create policy "follows_delete_own"
   using (auth.uid() = follower_id);
 
 -- Đếm followers / following (view đơn giản)
-create or replace view public.profile_stats as
+create or replace view public.profile_stats with (security_invoker = true) as
 select
   p.id,
   p.posts_count,
