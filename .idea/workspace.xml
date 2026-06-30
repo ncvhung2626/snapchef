@@ -5,24 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ffa2d0c7-ba5b-4ec0-b2a6-71876d98131b" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/markdown.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/test 2.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/SPRINT9_FIGMA_UI.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/GOOGLE_OAUTH_HUONG_DAN.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/MIGRATION_FROM_CURRENT.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/PRODUCTION_MASTER.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/phases/01-ARCHITECTURE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/phases/02-DATABASE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/phases/03-09-CORE-STACK.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/phases/10-AUTH-MODULE.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/phases/11-19-MODULES.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/phases/20-23-ADVANCED.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/phases/24-TESTING.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/phases/INVENTORY.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,10 +18,10 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "customColor": "",
-  "associatedIndex": 6
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 6
+}</component>
   <component name="ProjectId" id="3Fbx4Yc1obfxZKYeYgnBbMhuDx7" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -53,7 +36,7 @@
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "phuc",
     "kotlin-language-version-configured": "true"
   }
 }]]></component>
