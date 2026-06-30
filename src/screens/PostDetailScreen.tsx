@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { useTheme } from '../theme/ThemeContext';
 import {
   View,
@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  FlatList,
+  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -30,7 +32,7 @@ export const PostDetailScreen = ({
 }: RootStackScreenProps<'PostDetail'>) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { postId } = route.params;
+  const { postId, initialImageIndex = 0 } = route.params;
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [post, setPost] = useState<Post | null>(null);
@@ -38,6 +40,7 @@ export const PostDetailScreen = ({
   const [saved, setSaved] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(initialImageIndex);
 
   const load = async () => {
     const p = await postService.getPostById(postId, user?._id);
@@ -51,6 +54,9 @@ export const PostDetailScreen = ({
   useEffect(() => {
     load();
   }, [postId, user?._id]);
+
+  const screenWidth = Dimensions.get('window').width;
+  const imageWidth = screenWidth - spacing.lg * 2;
 
   const isOwner = user && post && post.author._id === user._id;
 
@@ -177,8 +183,36 @@ export const PostDetailScreen = ({
           <Text style={styles.meta}>⏱ {post.cookTimeMinutes} phút</Text>
         ) : null}
 
-        {post.images[0] ? (
-          <Image source={{ uri: post.images[0] }} style={styles.image} resizeMode="cover" />
+        {post.images.length > 0 ? (
+          <View style={styles.carouselContainer}>
+            <FlatList
+              data={post.images}
+              keyExtractor={(item, index) => index.toString()}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              initialScrollIndex={initialImageIndex}
+              onMomentumScrollEnd={(e) => {
+                const index = Math.round(e.nativeEvent.contentOffset.x / imageWidth);
+                if (index !== currentImageIndex) setCurrentImageIndex(index);
+              }}
+              getItemLayout={(_, index) => ({
+                length: imageWidth,
+                offset: imageWidth * index,
+                index,
+              })}
+              renderItem={({ item }) => (
+                <View style={{ width: imageWidth }}>
+                  <Image source={{ uri: item }} style={styles.image} resizeMode="cover" />
+                </View>
+              )}
+            />
+            {post.images.length > 1 && (
+              <View style={styles.paginationBadge}>
+                <Text style={styles.paginationText}>{currentImageIndex + 1}/{post.images.length}</Text>
+              </View>
+            )}
+          </View>
         ) : null}
 
         <View style={styles.stats}>
@@ -313,7 +347,18 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   },
   stepBadgeText: { color: colors.onPrimary, fontWeight: '700', fontSize: 14 },
   stepText: { ...typography.bodyMd, color: colors.onSurface, flex: 1 },
-  image: { width: '100%', height: 240, borderRadius: radius.lg, marginBottom: spacing.md },
+  carouselContainer: { marginBottom: spacing.md, position: 'relative' },
+  image: { width: '100%', height: 300, borderRadius: radius.lg },
+  paginationBadge: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+  },
+  paginationText: { ...typography.labelMd, color: '#fff', fontSize: 12 },
   stats: { flexDirection: 'row', gap: spacing.lg, marginBottom: spacing.md },
   statText: { ...typography.bodyMd, color: colors.onSurfaceVariant },
   actions: {

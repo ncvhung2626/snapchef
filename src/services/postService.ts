@@ -20,6 +20,7 @@ interface PostRow {
   updated_at: string;
   profiles?: ProfileRow | ProfileRow[];
   post_likes?: { user_id: string }[];
+  location?: { name: string; latitude?: number; longitude?: number } | null;
 }
 
 interface ProfileRow {
@@ -88,6 +89,7 @@ function mapPost(row: PostRow, currentUserId?: string): Post {
     steps: (row.steps as string[] | null) ?? undefined,
     cookTimeMinutes: row.cook_time_minutes ?? undefined,
     isRecipe: Boolean(row.title || (row.steps && row.steps.length)),
+    location: row.location ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -152,6 +154,7 @@ export interface CreatePostInput {
   imageUris?: string[];
   groupId?: string;
   visibility?: Post['visibility'];
+  location?: { name: string; latitude?: number; longitude?: number };
 }
 
 export interface CreateRecipeInput {
@@ -163,6 +166,7 @@ export interface CreateRecipeInput {
   cookTimeMinutes?: number;
   imageUris?: string[];
   groupId?: string;
+  location?: { name: string; latitude?: number; longitude?: number };
 }
 
 export interface UpdateRecipeInput {
@@ -198,6 +202,7 @@ export async function createPost(authorId: string, input: CreatePostInput): Prom
       videos: [],
       visibility: input.visibility ?? 'public',
       group_id: input.groupId ?? null,
+      location: input.location ?? null,
     })
     .select(POST_SELECT)
     .single();
@@ -233,6 +238,7 @@ export async function createRecipe(authorId: string, input: CreateRecipeInput): 
       ingredients: input.ingredients.map((i) => i.trim()).filter(Boolean),
       steps: input.steps.map((s) => s.trim()).filter(Boolean),
       cook_time_minutes: input.cookTimeMinutes ?? null,
+      location: input.location ?? null,
     })
     .select(POST_SELECT)
     .single();

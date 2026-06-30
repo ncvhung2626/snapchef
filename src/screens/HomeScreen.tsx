@@ -96,8 +96,11 @@ export const HomeScreen = ({ navigation }: any) => {
         title={post.title}
         content={post.content}
         hashtags={post.hashtags}
-        imageUrl={post.images[0]}
+        imageUrls={post.images}
         videoUrl={post.videos[0]}
+        locationName={post.location?.name}
+        locationLat={post.location?.latitude}
+        locationLng={post.location?.longitude}
         likesCount={post.likes.length}
         commentsCount={post.commentsCount}
         savesCount={post.isSaved ? 1 : 0}

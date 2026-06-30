@@ -84,6 +84,7 @@ async function executeTask(task: UploadTask): Promise<string> {
       imageUris: urls,
       groupId: task.metadata.groupId as string | undefined,
       visibility: task.metadata.visibility as any,
+      location: task.metadata.location as any,
     });
     invalidateFeedQueries();
   } else if (task.metadata?.action === 'create_recipe') {
@@ -97,6 +98,7 @@ async function executeTask(task: UploadTask): Promise<string> {
       cookTimeMinutes: task.metadata.cookTimeMinutes as number | undefined,
       imageUris: urls,
       groupId: task.metadata.groupId as string | undefined,
+      location: task.metadata.location as any,
     });
     invalidateFeedQueries();
   }

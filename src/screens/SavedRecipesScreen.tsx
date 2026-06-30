@@ -59,7 +59,7 @@ export const SavedRecipesScreen = ({ navigation }: RootStackScreenProps<'SavedRe
               author={item.author.fullname}
               time={formatRelativeTime(item.createdAt)}
               content={item.title ? `${item.title}\n${item.content}` : item.content}
-              imageUrl={item.images[0]}
+              imageUrls={item.images}
               likesCount={item.likes.length}
               commentsCount={item.commentsCount}
             />

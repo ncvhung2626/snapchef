@@ -12,12 +12,15 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { AppHeader } from '../components/AppHeader';
+import { type LocationData } from '../types/models';
 import { useAuth } from '../context/AuthContext';
 import { hasPermission } from '../utils/permissions';
 import { createPost } from '../services/postService';
@@ -38,6 +41,7 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
   const loadDraft = usePostStore((s) => s.loadDraft);
   const [content, setContent] = useState('');
   const [imageUris, setImageUris] = useState<string[]>([]);
+  const [location, setLocation] = useState<LocationData | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [draftHint, setDraftHint] = useState(false);
 
@@ -132,6 +136,53 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
     setImageUris((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleCheckIn = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Quyền truy cập', 'Cần quyền vị trí để check-in.');
+        return;
+      }
+      
+      let loc = null;
+      try {
+        loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      } catch (err) {
+        loc = await Location.getLastKnownPositionAsync({});
+      }
+
+      if (!loc) {
+         Alert.alert('Lỗi định vị', 'Thiết bị của bạn không thể xác định vị trí hiện tại. Vui lòng bật GPS và thử lại.');
+         return;
+      }
+
+      const [address] = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude
+      });
+      
+      if (address) {
+        const name = [address.city || address.subregion, address.region || address.country]
+          .filter(Boolean)
+          .join(', ');
+        
+        setLocation({
+          name: name || 'Vị trí không xác định',
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude
+        });
+      } else {
+        setLocation({
+          name: 'Vị trí không xác định',
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude
+        });
+      }
+    } catch (e: any) {
+      Alert.alert('Lỗi định vị', e?.message || 'Hệ thống bản đồ đang bận, vui lòng thử lại sau.');
+    }
+  };
+
   const handleSubmit = async () => {
     if (!user) return;
     if (!content.trim()) {
@@ -149,6 +200,7 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
         content,
         groupId,
         visibility: groupId ? 'group' : 'public',
+        location,
       }
     });
 
@@ -168,7 +220,11 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled={true}
+        >
           <Text style={styles.title}>Sáng tạo mỹ vị</Text>
           <Text style={styles.subtitle}>Chia sẻ công thức với cộng đồng SnapChef.</Text>
 
@@ -189,22 +245,44 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
               <Text style={styles.actionText}>Thư viện ({imageUris.length}/10)</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionButton} onPress={takePhoto}>
-              <Feather name="camera" size={24} color={colors.primary} />
-              <Text style={styles.actionText}>Chụp ảnh</Text>
+              <Feather name="camera" size={20} color={colors.primary} />
+              <Text style={styles.actionText}>Chụp</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButton} onPress={handleCheckIn}>
+              <Feather name="map-pin" size={20} color={colors.primary} />
+              <Text style={styles.actionText}>Check-in</Text>
             </TouchableOpacity>
           </View>
 
+          {location && (
+            <View style={styles.locationContainer}>
+              <Feather name="map-pin" size={16} color={colors.primary} />
+              <Text style={styles.locationText} numberOfLines={1}>{location.name}</Text>
+              <TouchableOpacity onPress={() => setLocation(null)}>
+                <Feather name="x" size={16} color={colors.onSurfaceVariant} />
+              </TouchableOpacity>
+            </View>
+          )}
+
           {imageUris.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
-              {imageUris.map((uri, index) => (
-                <View key={index} style={styles.imagePreviewContainer}>
+            <FlatList
+              data={imageUris}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.imageScroll}
+              contentContainerStyle={{ paddingRight: spacing.lg }}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+              keyExtractor={(_, index) => index.toString()}
+              renderItem={({ item: uri, index }) => (
+                <View style={styles.imagePreviewContainer}>
                   <Image source={{ uri }} style={styles.previewImage} />
                   <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeImage(index)}>
                     <Feather name="x" size={16} color="#fff" />
                   </TouchableOpacity>
                 </View>
-              ))}
-            </ScrollView>
+              )}
+            />
           )}
         </ScrollView>
 
@@ -307,5 +385,19 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   },
   submitDisabled: { opacity: 0.7 },
   submitText: { ...typography.labelMd, color: colors.onPrimary, fontWeight: 'bold' },
+  locationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primaryContainer,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  locationText: {
+    ...typography.bodyMd,
+    color: colors.primary,
+    flex: 1,
+  },
 });
 }

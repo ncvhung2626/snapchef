@@ -359,7 +359,7 @@ export const SearchScreen = ({ navigation }: MainTabScreenProps<'Search'>) => {
                 title={item.title}
                 content={item.content}
                 hashtags={item.hashtags}
-                imageUrl={item.images[0]}
+                imageUrls={item.images}
                 videoUrl={item.videos[0]}
                 likesCount={item.likes.length}
                 commentsCount={item.commentsCount}
@@ -395,7 +395,7 @@ export const SearchScreen = ({ navigation }: MainTabScreenProps<'Search'>) => {
                 title={item.title}
                 content={item.content}
                 hashtags={item.hashtags}
-                imageUrl={item.images[0]}
+                imageUrls={item.images}
                 videoUrl={item.videos[0]}
                 likesCount={item.likes.length}
                 commentsCount={item.commentsCount}
