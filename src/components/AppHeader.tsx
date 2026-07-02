@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme/ThemeContext';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
@@ -8,18 +9,35 @@ import { typography } from '../theme/typography';
 interface AppHeaderProps {
   title: string;
   rightAction?: React.ReactNode;
+  showBack?: boolean;
+  onBack?: () => void;
 }
 
-export const AppHeader = ({ title, rightAction }: AppHeaderProps) => {
+export const AppHeader = ({ title, rightAction, showBack, onBack }: AppHeaderProps) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const navigation = useNavigation();
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigation.goBack();
+    }
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.leftGroup}>
-        <TouchableOpacity style={styles.iconButton}>
-          <Feather name="menu" size={24} color={colors.onSurface} />
-        </TouchableOpacity>
+        {showBack ? (
+          <TouchableOpacity style={styles.iconButton} onPress={handleBack}>
+            <Feather name="arrow-left" size={24} color={colors.onSurface} />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.iconButton}>
+            <Feather name="menu" size={24} color={colors.onSurface} />
+          </TouchableOpacity>
+        )}
         <Text style={styles.title} numberOfLines={1}>
           {title}
         </Text>
