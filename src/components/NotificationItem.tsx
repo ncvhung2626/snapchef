@@ -40,6 +40,12 @@ const getTypeStyles = (type: NotificationType, colors: AppColors) => {
         iconColor: colors.primary,
         bgColor: colors.primaryFixed,
       };
+    case 'message':
+      return {
+        icon: 'message-square' as const,
+        iconColor: colors.primary,
+        bgColor: colors.primaryContainer,
+      };
     case 'follow':
       return {
         icon: 'user-plus' as const,

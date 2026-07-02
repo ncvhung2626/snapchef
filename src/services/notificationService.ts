@@ -26,7 +26,7 @@ function mapNotification(row: NotificationRow): Notification {
     receiver: row.receiver_id,
     type: row.type as NotificationType,
     title: row.title,
-    description: row.description,
+    description: profile?.fullname ? `${profile.fullname} ${row.description}` : row.description,
     postId: row.post_id ?? undefined,
     groupId: row.group_id ?? undefined,
     commentId: row.comment_id ?? undefined,
@@ -87,4 +87,22 @@ export function subscribeToNotifications(receiverId: string, onInsert: (notifica
     )
     .subscribe();
   return () => { void supabase.removeChannel(channel); };
+}
+
+export async function createNotification(data: {
+  receiver_id: string;
+  sender_id?: string;
+  type: string;
+  title: string;
+  description: string;
+  post_id?: string;
+  group_id?: string;
+  comment_id?: string;
+}): Promise<void> {
+  assertSupabaseConfigured();
+  if (data.receiver_id === data.sender_id) return;
+  const { error } = await getSupabase().from('notifications').insert([data]);
+  if (error) {
+    console.error('Failed to create notification', error);
+  }
 }

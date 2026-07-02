@@ -1,5 +1,6 @@
 import { getSupabase, assertSupabaseConfigured } from '../lib/supabase';
 import type { Conversation, Message } from '../types/models';
+import { createNotification } from './notificationService';
 
 interface ConversationRow {
   id: string;
@@ -203,6 +204,27 @@ export async function sendMessage(
     .single();
 
   if (error || !data) throw new Error(error?.message ?? 'Không gửi được tin nhắn');
+
+  try {
+    const { data: members } = await getSupabase()
+      .from('conversation_members')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .neq('user_id', senderId);
+
+    for (const member of (members || [])) {
+      await createNotification({
+        receiver_id: member.user_id,
+        sender_id: senderId,
+        type: 'message',
+        title: 'Tin nhắn mới',
+        description: 'đã nhắn tin cho bạn.',
+      });
+    }
+  } catch (e) {
+    console.log('Error creating message notification', e);
+  }
+
   return mapMessage(data as MessageRow, false);
 }
 

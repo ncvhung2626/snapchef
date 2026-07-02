@@ -83,6 +83,16 @@ export const HomeScreen = ({ navigation }: any) => {
     [user, likeMutation]
   );
 
+  const handleSave = useCallback(
+    (postId: string) => {
+      if (!user) return;
+      void import('../services/recipeService').then(({ toggleSaveRecipe }) =>
+        toggleSaveRecipe(user._id, postId).then(() => refetch())
+      );
+    },
+    [user, refetch]
+  );
+
   const renderPostItem = useCallback(
     ({ item: post }: { item: Post }) => (
       <PostCard
@@ -107,16 +117,11 @@ export const HomeScreen = ({ navigation }: any) => {
         sharesCount={post.shares}
         isLiked={user ? post.likes.includes(user._id) : false}
         isSaved={post.isSaved}
-        onLike={() => toggleLike(post._id)}
-        onSave={() => {
-          if (!user) return;
-          void import('../services/recipeService').then(({ toggleSaveRecipe }) =>
-            toggleSaveRecipe(user._id, post._id).then(() => refetch())
-          );
-        }}
+        onLike={toggleLike}
+        onSave={handleSave}
       />
     ),
-    [user, toggleLike, refetch]
+    [user, toggleLike, handleSave]
   );
 
   const feedHeader = (
@@ -261,6 +266,10 @@ export const HomeScreen = ({ navigation }: any) => {
           initialScrollIndex={undefined}
           onScroll={(e) => setScrollOffset(e.nativeEvent.contentOffset.y)}
           scrollEventThrottle={200}
+          initialNumToRender={5}
+          maxToRenderPerBatch={5}
+          windowSize={5}
+          removeClippedSubviews={true}
           onLayout={() => {
             if (scrollRestoredRef.current) return;
             const offset = useFeedStore.getState().scrollOffset;
