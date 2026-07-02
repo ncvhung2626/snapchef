@@ -78,7 +78,8 @@ export type NotificationType =
   | 'follow'
   | 'group'
   | 'system'
-  | 'premium';
+  | 'premium'
+  | 'message';
 
 export interface Notification {
   _id: string;

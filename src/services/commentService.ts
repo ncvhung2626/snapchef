@@ -1,5 +1,6 @@
 import { getSupabase, assertSupabaseConfigured } from '../lib/supabase';
 import type { Comment } from '../types/models';
+import { createNotification } from './notificationService';
 
 interface CommentRow {
   id: string;
@@ -58,6 +59,24 @@ export async function createComment(
     .single();
 
   if (error || !data) throw new Error(error?.message ?? 'Không gửi được bình luận');
+
+  try {
+    const { data: postData } = await getSupabase().from('posts').select('author_id').eq('id', postId).single();
+    if (postData && postData.author_id !== userId) {
+      await createNotification({
+        receiver_id: postData.author_id,
+        sender_id: userId,
+        type: 'comment',
+        title: 'Bình luận mới',
+        description: 'đã bình luận về bài viết của bạn.',
+        post_id: postId,
+        comment_id: data.id,
+      });
+    }
+  } catch (e) {
+    console.log('Error creating comment notification', e);
+  }
+
   return mapComment(data as CommentRow);
 }
 

@@ -1,6 +1,7 @@
 import { getSupabase, assertSupabaseConfigured } from '../lib/supabase';
 import type { Post, User, UserRole } from '../types/models';
 import { uploadPostImage } from './storageService';
+import { createNotification } from './notificationService';
 type FeedTab = 'forYou' | 'groups' | 'discover';
 
 interface PostRow {
@@ -316,6 +317,22 @@ export async function toggleLike(postId: string, userId: string): Promise<{ like
   } else {
     const { error } = await supabase.from('post_likes').insert({ post_id: postId, user_id: userId });
     if (error) throw new Error(error.message);
+    
+    try {
+      const { data: postData } = await supabase.from('posts').select('author_id').eq('id', postId).single();
+      if (postData && postData.author_id !== userId) {
+        await createNotification({
+          receiver_id: postData.author_id,
+          sender_id: userId,
+          type: 'like',
+          title: 'Lượt thích mới',
+          description: 'đã thích bài viết của bạn.',
+          post_id: postId,
+        });
+      }
+    } catch (e) {
+      console.log('Error creating like notification', e);
+    }
   }
 
   const { count } = await supabase
