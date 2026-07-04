@@ -50,8 +50,8 @@ export interface PostCardProps {
   sharesCount?: number;
   isLiked?: boolean;
   isSaved?: boolean;
-  onLike?: () => void;
-  onSave?: () => void;
+  onLike?: (postId: string) => void;
+  onSave?: (postId: string) => void;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -240,7 +240,7 @@ export const PostCard = React.memo(function PostCard({
       <View style={styles.divider} />
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionButton} onPress={onLike}>
+        <TouchableOpacity style={styles.actionButton} onPress={() => onLike?.(postId)}>
           <Feather name="heart" size={22} color={isLiked ? colors.error : colors.onSurfaceVariant} />
           <Text style={[styles.actionText, isLiked && styles.actionTextLiked]}>Thích</Text>
         </TouchableOpacity>
@@ -251,7 +251,7 @@ export const PostCard = React.memo(function PostCard({
           <Feather name="message-circle" size={22} color={colors.onSurfaceVariant} />
           <Text style={styles.actionText}>Bình luận</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton} onPress={onSave}>
+        <TouchableOpacity style={styles.actionButton} onPress={() => onSave?.(postId)}>
           <Feather name="bookmark" size={22} color={isSaved ? colors.primary : colors.onSurfaceVariant} />
           <Text style={[styles.actionText, isSaved && styles.actionTextSaved]}>Lưu</Text>
         </TouchableOpacity>

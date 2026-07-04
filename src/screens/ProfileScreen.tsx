@@ -8,6 +8,7 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -251,6 +252,14 @@ export const ProfileScreen = () => {
           >
             <Feather name="settings" size={20} color={colors.onSurface} />
             <Text style={styles.menuLabel}>Cài đặt</Text>
+            <Feather name="chevron-right" size={20} color={colors.onSurfaceVariant} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => Linking.openURL('tel:0799837864')}
+          >
+            <Feather name="phone-call" size={20} color={colors.onSurface} />
+            <Text style={styles.menuLabel}>Chăm sóc khách hàng</Text>
             <Feather name="chevron-right" size={20} color={colors.onSurfaceVariant} />
           </TouchableOpacity>
           {(user?.role === 'admin' || user?.role === 'moderator') && (

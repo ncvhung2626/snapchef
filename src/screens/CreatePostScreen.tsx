@@ -212,7 +212,7 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <AppHeader title={groupId ? 'Đăng bài trong nhóm' : 'Đăng bài'} />
+      <AppHeader title={groupId ? 'Đăng bài trong nhóm' : 'Đăng bài'} showBack />
       {draftHint && content.length > 0 && (
         <Text style={styles.draftHint}>Đã khôi phục bản nháp</Text>
       )}

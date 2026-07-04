@@ -92,7 +92,7 @@ export const GroupDetailScreen = ({ navigation, route }: any) => {
     }
   };
 
-  const handleLike = async (postId: string) => {
+  const handleLike = useCallback(async (postId: string) => {
     if (!user) return;
     try {
       const result = await toggleLike(postId, user._id);
@@ -108,7 +108,7 @@ export const GroupDetailScreen = ({ navigation, route }: any) => {
     } catch {
       /* ignore */
     }
-  };
+  }, [user]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -239,6 +239,10 @@ export const GroupDetailScreen = ({ navigation, route }: any) => {
         keyExtractor={(item) => item._id}
         refreshing={refreshing}
         onRefresh={handleRefresh}
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={true}
         renderItem={({ item }) => (
           <PostCard
             postId={item._id}
@@ -255,7 +259,7 @@ export const GroupDetailScreen = ({ navigation, route }: any) => {
             commentsCount={item.commentsCount}
             sharesCount={item.shares}
             isLiked={user ? item.likes.includes(user._id) : false}
-            onLike={() => handleLike(item._id)}
+            onLike={handleLike}
           />
         )}
         ListEmptyComponent={
