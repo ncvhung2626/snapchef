@@ -9,6 +9,7 @@ import {
   Alert,
   ScrollView,
   Linking,
+  Platform,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -99,8 +100,15 @@ export const PostCard = React.memo(function PostCard({
 
   const handleOpenMap = () => {
     if (locationLat && locationLng) {
-      const url = `https://www.google.com/maps/search/?api=1&query=${locationLat},${locationLng}`;
-      Linking.openURL(url).catch(() => Alert.alert('Lỗi', 'Không thể mở bản đồ.'));
+      const url = Platform.OS === 'ios'
+        ? `maps://?q=${locationLat},${locationLng}`
+        : `https://www.google.com/maps/search/?api=1&query=${locationLat},${locationLng}`;
+      
+      Linking.openURL(url).catch(() => {
+        // Fallback for iOS if maps:// scheme somehow fails or on web simulator
+        const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${locationLat},${locationLng}`;
+        Linking.openURL(fallbackUrl).catch(() => Alert.alert('Lỗi', 'Không thể mở bản đồ.'));
+      });
     }
   };
 

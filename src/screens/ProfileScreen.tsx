@@ -256,7 +256,22 @@ export const ProfileScreen = () => {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => Linking.openURL('tel:0799837864')}
+            onPress={async () => {
+              const url = 'tel:0799837864';
+              try {
+                const canOpen = await Linking.canOpenURL(url);
+                if (canOpen) {
+                  await Linking.openURL(url);
+                } else {
+                  Alert.alert(
+                    'Không hỗ trợ',
+                    'Thiết bị của bạn không hỗ trợ gọi điện trực tiếp. Vui lòng liên hệ Hotline: 0799837864'
+                  );
+                }
+              } catch {
+                Alert.alert('Lỗi', 'Không thể thực hiện cuộc gọi.');
+              }
+            }}
           >
             <Feather name="phone-call" size={20} color={colors.onSurface} />
             <Text style={styles.menuLabel}>Chăm sóc khách hàng</Text>
