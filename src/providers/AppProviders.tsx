@@ -8,15 +8,22 @@ import { useSettingsStore } from '../store/settingsStore';
 import { ThemeProvider } from '../theme/ThemeContext';
 import { UploadProgressBanner } from '../components/UploadProgressBanner';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 function StoreHydrator({ children }: { children: React.ReactNode }) {
   const hydrateSettings = useSettingsStore((s) => s.hydrate);
   const hydrateUpload = useUploadQueue((s) => s.hydrate);
+  const processQueue = useUploadQueue((s) => s.processQueue);
+  const { isOnline } = useNetworkStatus();
 
   React.useEffect(() => {
     void hydrateSettings();
     void hydrateUpload();
   }, [hydrateSettings, hydrateUpload]);
+
+  React.useEffect(() => {
+    if (isOnline) void processQueue();
+  }, [isOnline, processQueue]);
 
   return (
     <>

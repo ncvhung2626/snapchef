@@ -23,10 +23,9 @@ import { AppHeader } from '../components/AppHeader';
 import { type LocationData } from '../types/models';
 import { useAuth } from '../context/AuthContext';
 import { hasPermission } from '../utils/permissions';
-import { createPost } from '../services/postService';
 import { usePostStore } from '../store/postStore';
-import { invalidateFeedQueries } from '../utils/invalidateFeed';
 import { useUploadQueue } from '../lib/uploadQueue';
+import { sanitizeContent, validateMediaUpload } from '../utils/mediaValidation';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
@@ -185,7 +184,10 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
 
   const handleSubmit = async () => {
     if (!user) return;
-    if (!content.trim()) {
+    if (submitting) return;
+
+    const sanitizedContent = sanitizeContent(content);
+    if (!sanitizedContent) {
       Alert.alert('Lỗi', 'Nhập nội dung bài viết');
       return;
     }
@@ -204,10 +206,29 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
       }
     });
 
-    setContent('');
-    setDraftHint(false);
-    await clearDraft();
-    navigation.goBack();
+    setSubmitting(true);
+    try {
+      useUploadQueue.getState().enqueue({
+        id: `post-${Date.now()}`,
+        type: 'image',
+        userId: user._id,
+        localUris: imageUris,
+        metadata: {
+          action: 'create_post',
+          content: sanitizedContent,
+          groupId,
+          visibility: groupId ? 'group' : 'public',
+        }
+      });
+
+      setContent('');
+      setImageUris([]);
+      setDraftHint(false);
+      await clearDraft();
+      navigation.goBack();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -240,7 +261,11 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
           </View>
 
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.actionButton} onPress={pickImages}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={pickImages}
+              activeOpacity={0.7}
+            >
               <Feather name="image" size={24} color={colors.primary} />
               <Text style={styles.actionText}>Thư viện ({imageUris.length}/10)</Text>
             </TouchableOpacity>
@@ -277,7 +302,12 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
               renderItem={({ item: uri, index }) => (
                 <View style={styles.imagePreviewContainer}>
                   <Image source={{ uri }} style={styles.previewImage} />
-                  <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeImage(index)}>
+                  <TouchableOpacity
+                    style={styles.removeImageBtn}
+                    onPress={() => removeImage(index)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
                     <Feather name="x" size={16} color="#fff" />
                   </TouchableOpacity>
                 </View>
@@ -291,6 +321,7 @@ export const CreatePostScreen = ({ navigation, route }: any) => {
             style={[styles.submitButton, submitting && styles.submitDisabled]}
             onPress={handleSubmit}
             disabled={submitting}
+            activeOpacity={0.7}
           >
             {submitting ? (
               <ActivityIndicator color={colors.onPrimary} />

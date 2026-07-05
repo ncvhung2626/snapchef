@@ -8,6 +8,8 @@ import { typography } from '../theme/typography';
 
 interface AppHeaderProps {
   title: string;
+  showBack?: boolean;
+  onBackPress?: () => void;
   rightAction?: React.ReactNode;
   showBack?: boolean;
   onBack?: () => void;
@@ -15,6 +17,7 @@ interface AppHeaderProps {
 
 export const AppHeader = ({ title, rightAction, showBack, onBack }: AppHeaderProps) => {
   const { colors } = useTheme();
+  const navigation = useNavigation();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const navigation = useNavigation();
 
@@ -25,6 +28,16 @@ export const AppHeader = ({ title, rightAction, showBack, onBack }: AppHeaderPro
       navigation.goBack();
     }
   };
+
+  const handleBack = () => {
+    if (onBackPress) {
+      onBackPress();
+    } else if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
+  };
+
+  const hitSlop = { top: 12, bottom: 12, left: 12, right: 12 };
 
   return (
     <View style={styles.container}>
@@ -43,7 +56,14 @@ export const AppHeader = ({ title, rightAction, showBack, onBack }: AppHeaderPro
         </Text>
       </View>
       {rightAction ?? (
-        <TouchableOpacity style={styles.iconButton}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          activeOpacity={0.7}
+          hitSlop={hitSlop}
+          onPress={() => {
+            // Search or custom action placeholder
+          }}
+        >
           <Feather name="search" size={24} color={colors.onSurface} />
         </TouchableOpacity>
       )}
@@ -66,6 +86,8 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     leftGroup: {
       flexDirection: 'row',
       alignItems: 'center',
+      flex: 1,
+      marginRight: spacing.md,
     },
     iconButton: {
       padding: spacing.xs,
@@ -74,6 +96,8 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       ...typography.headlineLg,
       color: colors.onSurface,
       marginLeft: spacing.md,
+      flex: 1,
     },
   });
 }
+

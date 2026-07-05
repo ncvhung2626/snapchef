@@ -141,7 +141,11 @@ export const SearchScreen = ({ navigation }: MainTabScreenProps<'Search'>) => {
         )}
       </View>
 
-      <View style={styles.tabs}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabs}
+      >
         {SEARCH_TABS.map((tab) => (
           <TouchableOpacity
             key={tab.key}
@@ -153,7 +157,7 @@ export const SearchScreen = ({ navigation }: MainTabScreenProps<'Search'>) => {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {(activeTab === 'posts' || activeTab === 'recipes') && (
         <CategoryChips active={category} onChange={setCategory} />
