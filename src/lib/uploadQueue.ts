@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import { uploadPostImage } from '../services/storageService';
 import { uploadReelVideo } from '../services/reelService';
 import { createPost } from '../services/postService';
@@ -43,13 +44,30 @@ async function persistTasks(tasks: UploadTask[]) {
   await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(pending));
 }
 
+async function isNetworkOnline() {
+  const state = await NetInfo.fetch();
+  return state.isConnected !== false && state.isInternetReachable !== false;
+}
+
 async function executeTask(task: UploadTask): Promise<string> {
   if (task.type === 'video') {
-    return uploadReelVideo(task.userId, task.localUri, (p) => {
+    const url = await uploadReelVideo(task.userId, task.localUri, (p) => {
       useUploadQueue.setState((s) => ({
         tasks: s.tasks.map((t) => (t.id === task.id ? { ...t, progress: p } : t)),
       }));
     });
+
+    if (task.metadata?.action === 'create_reel') {
+      const { createReel } = await import('../repositories/reel.repository');
+      await createReel({
+        userId: task.userId,
+        videoUrl: url,
+        caption: task.metadata.caption as string,
+        durationSeconds: task.metadata.durationSeconds as number | undefined,
+      });
+    }
+
+    return url;
   }
   
   let url = '';
@@ -113,7 +131,9 @@ export const useUploadQueue = create<UploadQueueState>((set, get) => ({
     const raw = await AsyncStorage.getItem(QUEUE_KEY);
     if (raw) {
       try {
-        const tasks = JSON.parse(raw) as UploadTask[];
+        const tasks = (JSON.parse(raw) as UploadTask[]).map((task) =>
+          task.status === 'uploading' ? { ...task, status: 'pending' as const, progress: 0 } : task
+        );
         set({ tasks, hydrated: true });
         void get().processQueue();
         return;
@@ -159,6 +179,7 @@ export const useUploadQueue = create<UploadQueueState>((set, get) => ({
   processQueue: async () => {
     const { processing, tasks } = get();
     if (processing) return;
+    if (!(await isNetworkOnline())) return;
 
     const next = tasks.find((t) => t.status === 'pending');
     if (!next) return;
@@ -175,7 +196,11 @@ export const useUploadQueue = create<UploadQueueState>((set, get) => ({
           t.id === next.id ? { ...t, status: 'completed', progress: 100, resultUrl: url } : t
         ),
       }));
-      if (next.metadata?.action === 'create_post' || next.metadata?.action === 'create_recipe') {
+      if (
+        next.metadata?.action === 'create_post' ||
+        next.metadata?.action === 'create_recipe' ||
+        next.metadata?.action === 'create_reel'
+      ) {
         Alert.alert('Thành công', 'Bài viết của bạn đã được đăng!');
       }
     } catch (err) {
@@ -186,7 +211,11 @@ export const useUploadQueue = create<UploadQueueState>((set, get) => ({
             : t
         ),
       }));
-      if (next.metadata?.action === 'create_post' || next.metadata?.action === 'create_recipe') {
+      if (
+        next.metadata?.action === 'create_post' ||
+        next.metadata?.action === 'create_recipe' ||
+        next.metadata?.action === 'create_reel'
+      ) {
         Alert.alert('Lỗi đăng bài', err instanceof Error ? err.message : 'Upload failed');
       }
     } finally {

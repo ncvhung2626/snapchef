@@ -5,9 +5,10 @@ import { assertNoError } from './base.repository';
 export async function saveRecipe(userId: string, postId: string) {
   const supabase = getSupabase();
   const { error: e1 } = await supabase.from('saved_recipes').insert({ user_id: userId, post_id: postId });
-  if (!e1) return;
+  if (!e1 || e1.code === '23505') return;
 
   const { error: e2 } = await supabase.from('saved_posts').insert({ user_id: userId, post_id: postId });
+  if (e2?.code === '23505') return;
   assertNoError(e2);
 }
 
@@ -34,4 +35,26 @@ export async function listSaved(userId: string) {
     .order('created_at', { ascending: false });
   assertNoError(fallback.error);
   return fallback.data ?? [];
+}
+
+export async function isSaved(userId: string, postId: string) {
+  const supabase = getSupabase();
+  const savedRecipes = await supabase
+    .from('saved_recipes')
+    .select('post_id')
+    .eq('user_id', userId)
+    .eq('post_id', postId)
+    .maybeSingle();
+
+  if (savedRecipes.data) return true;
+
+  const savedPosts = await supabase
+    .from('saved_posts')
+    .select('post_id')
+    .eq('user_id', userId)
+    .eq('post_id', postId)
+    .maybeSingle();
+
+  if (savedPosts.error && savedPosts.error.code !== 'PGRST205') assertNoError(savedPosts.error);
+  return Boolean(savedPosts.data);
 }

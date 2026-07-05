@@ -134,13 +134,13 @@ export async function uploadReelVideo(
   const file = new File(localUri);
   const arrayBuffer = await file.arrayBuffer();
   onProgress?.(40);
-  const { error } = await supabase.storage.from('reel-videos').upload(path, arrayBuffer, {
+  const { error } = await supabase.storage.from('reels').upload(path, arrayBuffer, {
     contentType: `video/${ext === 'mov' ? 'quicktime' : 'mp4'}`,
     upsert: false,
   });
   if (error) throw new Error(error.message);
   onProgress?.(100);
-  const { data } = supabase.storage.from('reel-videos').getPublicUrl(path);
+  const { data } = supabase.storage.from('reels').getPublicUrl(path);
   return data.publicUrl;
 }
 

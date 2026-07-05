@@ -1,31 +1,70 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme/ThemeContext';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 
 interface AppHeaderProps {
   title: string;
+  showBack?: boolean;
+  onBackPress?: () => void;
   rightAction?: React.ReactNode;
 }
 
-export const AppHeader = ({ title, rightAction }: AppHeaderProps) => {
+export const AppHeader = ({ title, showBack = false, onBackPress, rightAction }: AppHeaderProps) => {
   const { colors } = useTheme();
+  const navigation = useNavigation();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const handleBack = () => {
+    if (onBackPress) {
+      onBackPress();
+    } else if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
+  };
+
+  const hitSlop = { top: 12, bottom: 12, left: 12, right: 12 };
 
   return (
     <View style={styles.container}>
       <View style={styles.leftGroup}>
-        <TouchableOpacity style={styles.iconButton}>
-          <Feather name="menu" size={24} color={colors.onSurface} />
-        </TouchableOpacity>
+        {showBack ? (
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={handleBack}
+            activeOpacity={0.7}
+            hitSlop={hitSlop}
+          >
+            <Feather name="arrow-left" size={24} color={colors.onSurface} />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.iconButton}
+            activeOpacity={0.7}
+            hitSlop={hitSlop}
+            onPress={() => {
+              // Placeholder for side menu drawer
+            }}
+          >
+            <Feather name="menu" size={24} color={colors.onSurface} />
+          </TouchableOpacity>
+        )}
         <Text style={styles.title} numberOfLines={1}>
           {title}
         </Text>
       </View>
       {rightAction ?? (
-        <TouchableOpacity style={styles.iconButton}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          activeOpacity={0.7}
+          hitSlop={hitSlop}
+          onPress={() => {
+            // Search or custom action placeholder
+          }}
+        >
           <Feather name="search" size={24} color={colors.onSurface} />
         </TouchableOpacity>
       )}
@@ -48,6 +87,8 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     leftGroup: {
       flexDirection: 'row',
       alignItems: 'center',
+      flex: 1,
+      marginRight: spacing.md,
     },
     iconButton: {
       padding: spacing.xs,
@@ -56,6 +97,8 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
       ...typography.headlineLg,
       color: colors.onSurface,
       marginLeft: spacing.md,
+      flex: 1,
     },
   });
 }
+

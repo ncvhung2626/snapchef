@@ -1,47 +1,24 @@
-import { assertSupabaseConfigured, getSupabase } from '../lib/supabase';
+import { assertSupabaseConfigured } from '../lib/supabase';
 import type { Post } from '../types/models';
 import { getPostById } from './postService';
+import * as savedPostRepository from '../repositories/savedPost.repository';
 
 export async function toggleSaveRecipe(userId: string, postId: string): Promise<boolean> {
   assertSupabaseConfigured();
-  const supabase = getSupabase();
-
-  const { data: existing } = await supabase
-    .from('saved_recipes')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('post_id', postId)
-    .maybeSingle();
+  const existing = await savedPostRepository.isSaved(userId, postId);
 
   if (existing) {
-    const { error } = await supabase
-      .from('saved_recipes')
-      .delete()
-      .eq('user_id', userId)
-      .eq('post_id', postId);
-    if (error) throw new Error(error.message);
+    await savedPostRepository.unsaveRecipe(userId, postId);
     return false;
   }
 
-  const { error } = await supabase.from('saved_recipes').insert({
-    user_id: userId,
-    post_id: postId,
-  });
-  if (error) throw new Error(error.message);
+  await savedPostRepository.saveRecipe(userId, postId);
   return true;
 }
 
 export async function getSavedRecipes(userId: string): Promise<Post[]> {
   assertSupabaseConfigured();
-  const supabase = getSupabase();
-
-  const { data, error } = await supabase
-    .from('saved_recipes')
-    .select('post_id')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw new Error(error.message);
+  const data = await savedPostRepository.listSaved(userId);
   const posts: Post[] = [];
   for (const row of data ?? []) {
     const p = await getPostById(row.post_id as string, userId);
@@ -52,11 +29,5 @@ export async function getSavedRecipes(userId: string): Promise<Post[]> {
 
 export async function isPostSaved(userId: string, postId: string): Promise<boolean> {
   assertSupabaseConfigured();
-  const { data } = await getSupabase()
-    .from('saved_recipes')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('post_id', postId)
-    .maybeSingle();
-  return Boolean(data);
+  return savedPostRepository.isSaved(userId, postId);
 }

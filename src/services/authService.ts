@@ -72,6 +72,12 @@ export async function requestPasswordReset(email: string): Promise<void> {
 
 WebBrowser.maybeCompleteAuthSession();
 
+const getUrlParam = (url: string, param: string): string | null => {
+  const reg = new RegExp('[?&#]' + param + '=([^&#]*)');
+  const results = reg.exec(url);
+  return results ? decodeURIComponent(results[1]) : null;
+};
+
 export async function signInWithGoogle(): Promise<AuthPayload | null> {
   assertSupabaseConfigured();
   const redirectTo = makeRedirectUri({ path: 'auth/callback' });
@@ -85,8 +91,10 @@ export async function signInWithGoogle(): Promise<AuthPayload | null> {
   const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
   if (result.type !== 'success' || !result.url) return null;
 
-  const url = new URL(result.url);
-  const code = url.searchParams.get('code');
+  const responseUrl = result.url;
+  
+  // 1. Check for authorization code flow (PKCE)
+  const code = getUrlParam(responseUrl, 'code');
   if (code) {
     const { data: sessionData, error: exchangeError } =
       await getSupabase().auth.exchangeCodeForSession(code);
@@ -96,6 +104,21 @@ export async function signInWithGoogle(): Promise<AuthPayload | null> {
     return payloadFromSession(sessionData.session, profile);
   }
 
+  // 2. Check for implicit grant flow (direct tokens in redirect hash/query)
+  const accessToken = getUrlParam(responseUrl, 'access_token');
+  const refreshToken = getUrlParam(responseUrl, 'refresh_token');
+  if (accessToken && refreshToken) {
+    const { data: sessionData, error: sessionError } = await getSupabase().auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (sessionError) throw new Error(sessionError.message);
+    if (!sessionData.session?.user) return null;
+    const profile = await authRepository.fetchProfileByUserId(sessionData.session.user.id);
+    return payloadFromSession(sessionData.session, profile);
+  }
+
+  // 3. Fallback: Get active session directly
   const { data: sessionData, error: sessionError } = await getSupabase().auth.getSession();
   if (sessionError) throw new Error(sessionError.message);
   if (!sessionData.session?.user) return null;
