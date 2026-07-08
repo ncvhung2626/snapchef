@@ -19,15 +19,14 @@ import type { LocationData } from '../types/models';
 import { useUploadQueue } from '../lib/uploadQueue';
 import type { RootStackScreenProps } from '../types/navigation';
 import { useAuth } from '../context/AuthContext';
-import { createRecipe } from '../services/postService';
 import { RECIPE_CATEGORIES } from '../constants/categories';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { validateRecipeDraft, hasErrors } from '../utils/validation';
+import { sanitizeContent, validateMediaUpload } from '../utils/mediaValidation';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
 import { useRecipeStore } from '../store/recipeStore';
-import { invalidateFeedQueries } from '../utils/invalidateFeed';
 
 export const CreateRecipeScreen = ({ navigation }: RootStackScreenProps<'CreateRecipe'>) => {
   const { colors } = useTheme();
@@ -224,28 +223,41 @@ export const CreateRecipeScreen = ({ navigation }: RootStackScreenProps<'CreateR
   };
 
   const handlePublish = async () => {
+    if (submitting) return;
+
+    const cleanTitle = sanitizeContent(title);
+    const cleanDescription = sanitizeContent(description);
+    const cleanIngredients = ingredients.map(sanitizeContent).filter(Boolean);
+    const cleanSteps = steps.map(sanitizeContent).filter(Boolean);
     const e = validateRecipeDraft({
-      title,
-      description,
-      ingredients,
-      steps,
+      title: cleanTitle,
+      description: cleanDescription,
+      ingredients: cleanIngredients,
+      steps: cleanSteps,
     });
     setErrors(e);
     if (hasErrors(e) || !user) return;
 
+    const mediaCheck = validateMediaUpload({ imageCount: imageUris.length, videoCount: 0 });
+    if (!mediaCheck.valid) {
+      Alert.alert('Lá»—i', mediaCheck.error);
+      return;
+    }
+
+    setSubmitting(true);
     try {
       useUploadQueue.getState().enqueue({
-        id: Date.now().toString(),
+        id: `recipe-${Date.now()}`,
         type: 'recipe',
         userId: user._id,
         localUris: imageUris,
         metadata: {
           action: 'create_recipe',
-          title,
-          description,
+          title: cleanTitle,
+          description: cleanDescription,
           category,
-          ingredients,
-          steps,
+          ingredients: cleanIngredients,
+          steps: cleanSteps,
           cookTimeMinutes: cookTime ? parseInt(cookTime, 10) : undefined,
           location,
         }

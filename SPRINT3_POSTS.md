@@ -1,4 +1,4 @@
-# Sprint 3 — Posts (Supabase)
+j# Sprint 3 — Posts (Supabase)
 
 ## SQL
 

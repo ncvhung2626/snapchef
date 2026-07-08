@@ -1,6 +1,14 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, onlineManager } from '@tanstack/react-query';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
+
+// Wire onlineManager to NetInfo for React Native
+onlineManager.setEventListener((setOnline) => {
+  return NetInfo.addEventListener((state) => {
+    setOnline(!!state.isConnected);
+  });
+});
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,3 +29,4 @@ export const asyncStoragePersister = createAsyncStoragePersister({
   key: 'snapchef_query_cache',
   throttleTime: 2000,
 });
+

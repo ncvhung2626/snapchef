@@ -15,9 +15,9 @@ import { Feather } from '@expo/vector-icons';
 import type { RootStackScreenProps } from '../types/navigation';
 import { useAuth } from '../context/AuthContext';
 import { hasPermission } from '../utils/permissions';
-import { uploadReelVideo, validateVideoDuration, MAX_VIDEO_DURATION_SEC } from '../services/reelService';
-import * as reelRepo from '../repositories/reel.repository';
+import { validateVideoDuration, MAX_VIDEO_DURATION_SEC } from '../services/reelService';
 import { useUploadQueue } from '../lib/uploadQueue';
+import { sanitizeContent } from '../utils/mediaValidation';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/radius';
@@ -70,34 +70,19 @@ export const CreateReelScreen = ({ navigation }: RootStackScreenProps<'CreateRee
     }
     setSubmitting(true);
     try {
-      const taskId = enqueue({
+      enqueue({
         id: `reel-${Date.now()}`,
         type: 'video',
         userId: user._id,
         localUri: videoUri,
+        metadata: {
+          action: 'create_reel',
+          caption: sanitizeContent(caption),
+          durationSeconds: Math.round(duration),
+        },
       });
 
-      const waitForUpload = (): Promise<string> =>
-        new Promise((resolve, reject) => {
-          const check = () => {
-            const task = useUploadQueue.getState().tasks.find((t) => t.id === taskId);
-            if (task?.status === 'completed' && task.resultUrl) resolve(task.resultUrl);
-            else if (task?.status === 'failed') reject(new Error(task.error ?? 'Upload failed'));
-            else setTimeout(check, 500);
-          };
-          useUploadQueue.getState().processQueue();
-          check();
-        });
-
-      const videoUrl = await waitForUpload();
-      await reelRepo.createReel({
-        userId: user._id,
-        videoUrl,
-        caption: caption.trim(),
-        durationSeconds: Math.round(duration),
-      });
-
-      Alert.alert('Thành công', 'Reel đã được đăng', [
+      Alert.alert('Dang tai len', 'Reel se duoc dang sau khi upload xong.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (err) {
