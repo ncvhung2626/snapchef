@@ -134,6 +134,10 @@ export const InboxScreen = () => {
         <FlatList
           data={notifications}
           keyExtractor={(item) => item._id}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
           renderItem={({ item: n }) => (
             <NotificationItem
               title={n.title}
@@ -159,10 +163,14 @@ export const InboxScreen = () => {
         <FlatList
           data={conversations}
           keyExtractor={(item) => item._id}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
           renderItem={({ item: c }) => (
             <MessageItem
               name={c.isGroupChat ? (c.groupTitle ?? 'Chat nhóm') : (c.otherUserName ?? 'Người dùng')}
-              message={c.lastMessage}
+              message={c.lastMessage.startsWith('__LOCATION__:') ? 'Vị trí đã chia sẻ' : c.lastMessage}
               avatarUrl={c.isGroupChat ? undefined : c.otherUserAvatar}
               timeAgo={formatRelativeTime(c.updatedAt)}
               onPress={() => openChat(c)}
@@ -186,80 +194,80 @@ export const InboxScreen = () => {
 
 function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  markAll: {
-    ...typography.labelMd,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceVariant,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabButtonActive: {
-    borderBottomColor: colors.primary,
-  },
-  tabText: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-  },
-  tabTextActive: {
-    color: colors.primary,
-    fontWeight: 'bold',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  listContainer: {
-    paddingBottom: spacing['2xl'],
-  },
-  listEmpty: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing['3xl'],
-  },
-  emptyTitle: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
-    marginBottom: spacing.xs,
-  },
-  emptyDesc: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-  },
-  newChatBtn: {
-    marginTop: spacing.lg,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderRadius: radius.full,
-  },
-  newChatText: {
-    ...typography.labelMd,
-    color: colors.onPrimary,
-    fontWeight: 'bold',
-  },
-});
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    markAll: {
+      ...typography.labelMd,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    tabContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.sm,
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.surfaceVariant,
+    },
+    tabButton: {
+      flex: 1,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    tabButtonActive: {
+      borderBottomColor: colors.primary,
+    },
+    tabText: {
+      ...typography.bodyMd,
+      color: colors.onSurfaceVariant,
+    },
+    tabTextActive: {
+      color: colors.primary,
+      fontWeight: 'bold',
+    },
+    centerContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    listContainer: {
+      paddingBottom: spacing['2xl'],
+    },
+    listEmpty: {
+      flex: 1,
+      justifyContent: 'center',
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing['3xl'],
+    },
+    emptyTitle: {
+      ...typography.headlineMd,
+      color: colors.onSurface,
+      marginBottom: spacing.xs,
+    },
+    emptyDesc: {
+      ...typography.bodyMd,
+      color: colors.onSurfaceVariant,
+      textAlign: 'center',
+    },
+    newChatBtn: {
+      marginTop: spacing.lg,
+      backgroundColor: colors.primary,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.md,
+      borderRadius: radius.full,
+    },
+    newChatText: {
+      ...typography.labelMd,
+      color: colors.onPrimary,
+      fontWeight: 'bold',
+    },
+  });
 }
