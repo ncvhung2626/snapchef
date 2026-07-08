@@ -11,23 +11,12 @@ interface AppHeaderProps {
   showBack?: boolean;
   onBackPress?: () => void;
   rightAction?: React.ReactNode;
-  showBack?: boolean;
-  onBack?: () => void;
 }
 
-export const AppHeader = ({ title, rightAction, showBack, onBack }: AppHeaderProps) => {
+export const AppHeader = ({ title, rightAction, showBack, onBackPress }: AppHeaderProps) => {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const navigation = useNavigation();
-
-  const handleBack = () => {
-    if (onBack) {
-      onBack();
-    } else {
-      navigation.goBack();
-    }
-  };
 
   const handleBack = () => {
     if (onBackPress) {
