@@ -45,11 +45,37 @@ async function persistTasks(tasks: UploadTask[]) {
 
 async function executeTask(task: UploadTask): Promise<string> {
   if (task.type === 'video') {
-    return uploadReelVideo(task.userId, task.localUri, (p) => {
+    const url = await uploadReelVideo(task.userId, task.localUri, (p) => {
       useUploadQueue.setState((s) => ({
-        tasks: s.tasks.map((t) => (t.id === task.id ? { ...t, progress: p } : t)),
+        tasks: s.tasks.map((t) => (t.id === task.id ? { ...t, progress: p * 0.8 } : t)),
       }));
     });
+
+    let thumbnailUrl = '';
+    if (task.metadata?.thumbnailLocalUri) {
+      try {
+        thumbnailUrl = await uploadPostImage(task.userId, task.metadata.thumbnailLocalUri as string, (p) => {
+          useUploadQueue.setState((s) => ({
+            tasks: s.tasks.map((t) => (t.id === task.id ? { ...t, progress: 80 + p * 0.2 } : t)),
+          }));
+        });
+      } catch (err) {
+        console.warn('Failed to upload reel thumbnail, using empty URL', err);
+      }
+    }
+
+    if (task.metadata?.action === 'create_reel') {
+      const { createReel } = await import('../repositories/reel.repository');
+      await createReel({
+        userId: task.userId,
+        videoUrl: url,
+        thumbnailUrl: thumbnailUrl || undefined,
+        caption: task.metadata.caption as string,
+        durationSeconds: task.metadata.durationSeconds as number,
+      });
+      invalidateFeedQueries();
+    }
+    return url;
   }
   
   let url = '';
@@ -116,7 +142,10 @@ export const useUploadQueue = create<UploadQueueState>((set, get) => ({
     if (raw) {
       try {
         const tasks = JSON.parse(raw) as UploadTask[];
-        set({ tasks, hydrated: true });
+        const normalized = tasks.map((t) =>
+          t.status === 'uploading' ? { ...t, status: 'pending' as const, progress: 0 } : t
+        );
+        set({ tasks: normalized, hydrated: true });
         void get().processQueue();
         return;
       } catch {
@@ -142,7 +171,7 @@ export const useUploadQueue = create<UploadQueueState>((set, get) => ({
   cancel: (taskId) => {
     set((s) => ({
       tasks: s.tasks.map((t) =>
-        t.id === taskId && t.status !== 'uploading' ? { ...t, status: 'cancelled' } : t
+        t.id === taskId ? { ...t, status: 'cancelled' as const } : t
       ),
     }));
     void persistTasks(get().tasks);
@@ -172,6 +201,9 @@ export const useUploadQueue = create<UploadQueueState>((set, get) => ({
 
     try {
       const url = await executeTask(next);
+      if (get().tasks.find((t) => t.id === next.id)?.status === 'cancelled') {
+        return;
+      }
       set((s) => ({
         tasks: s.tasks.map((t) =>
           t.id === next.id ? { ...t, status: 'completed', progress: 100, resultUrl: url } : t
@@ -179,8 +211,13 @@ export const useUploadQueue = create<UploadQueueState>((set, get) => ({
       }));
       if (next.metadata?.action === 'create_post' || next.metadata?.action === 'create_recipe') {
         Alert.alert('Thành công', 'Bài viết của bạn đã được đăng!');
+      } else if (next.metadata?.action === 'create_reel') {
+        Alert.alert('Thành công', 'Reel của bạn đã được đăng!');
       }
     } catch (err) {
+      if (get().tasks.find((t) => t.id === next.id)?.status === 'cancelled') {
+        return;
+      }
       set((s) => ({
         tasks: s.tasks.map((t) =>
           t.id === next.id
@@ -190,6 +227,8 @@ export const useUploadQueue = create<UploadQueueState>((set, get) => ({
       }));
       if (next.metadata?.action === 'create_post' || next.metadata?.action === 'create_recipe') {
         Alert.alert('Lỗi đăng bài', err instanceof Error ? err.message : 'Upload failed');
+      } else if (next.metadata?.action === 'create_reel') {
+        Alert.alert('Lỗi đăng Reel', err instanceof Error ? err.message : 'Upload failed');
       }
     } finally {
       set({ processing: false });

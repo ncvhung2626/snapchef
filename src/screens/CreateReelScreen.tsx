@@ -8,9 +8,11 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Feather } from '@expo/vector-icons';
 import type { RootStackScreenProps } from '../types/navigation';
 import { useAuth } from '../context/AuthContext';
@@ -30,7 +32,7 @@ export const CreateReelScreen = ({ navigation }: RootStackScreenProps<'CreateRee
   const [caption, setCaption] = useState('');
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
-  const [submitting, setSubmitting] = useState(false);
+  const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
 
   const pickVideo = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -39,7 +41,7 @@ export const CreateReelScreen = ({ navigation }: RootStackScreenProps<'CreateRee
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['videos'],
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
       videoMaxDuration: MAX_VIDEO_DURATION_SEC,
       quality: 0.8,
     });
@@ -52,6 +54,17 @@ export const CreateReelScreen = ({ navigation }: RootStackScreenProps<'CreateRee
       }
       setVideoUri(asset.uri);
       setDuration(dur);
+
+      // Tự động tạo thumbnail từ giây thứ 0 của video
+      try {
+        const { uri } = await VideoThumbnails.getThumbnailAsync(asset.uri, {
+          time: 0,
+          quality: 0.7,
+        });
+        setThumbnailUri(uri);
+      } catch (err) {
+        console.warn('Không tạo được thumbnail', err);
+      }
     }
   };
 
@@ -68,43 +81,23 @@ export const CreateReelScreen = ({ navigation }: RootStackScreenProps<'CreateRee
       Alert.alert('Lỗi', 'Chọn video trước khi đăng');
       return;
     }
-    setSubmitting(true);
-    try {
-      const taskId = enqueue({
-        id: `reel-${Date.now()}`,
-        type: 'video',
-        userId: user._id,
-        localUri: videoUri,
-      });
-
-      const waitForUpload = (): Promise<string> =>
-        new Promise((resolve, reject) => {
-          const check = () => {
-            const task = useUploadQueue.getState().tasks.find((t) => t.id === taskId);
-            if (task?.status === 'completed' && task.resultUrl) resolve(task.resultUrl);
-            else if (task?.status === 'failed') reject(new Error(task.error ?? 'Upload failed'));
-            else setTimeout(check, 500);
-          };
-          useUploadQueue.getState().processQueue();
-          check();
-        });
-
-      const videoUrl = await waitForUpload();
-      await reelRepo.createReel({
-        userId: user._id,
-        videoUrl,
+    
+    enqueue({
+      id: `reel-${Date.now()}`,
+      type: 'video',
+      userId: user._id,
+      localUri: videoUri,
+      metadata: {
+        action: 'create_reel',
         caption: caption.trim(),
         durationSeconds: Math.round(duration),
-      });
+        thumbnailLocalUri: thumbnailUri || undefined,
+      },
+    });
 
-      Alert.alert('Thành công', 'Reel đã được đăng', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-    } catch (err) {
-      Alert.alert('Lỗi', err instanceof Error ? err.message : 'Không đăng được Reel');
-    } finally {
-      setSubmitting(false);
-    }
+    Alert.alert('Đang tải lên', 'Video của bạn đang được tải lên trong nền.', [
+      { text: 'OK', onPress: () => navigation.goBack() },
+    ]);
   };
 
   return (
@@ -121,8 +114,14 @@ export const CreateReelScreen = ({ navigation }: RootStackScreenProps<'CreateRee
         <TouchableOpacity style={styles.videoPicker} onPress={pickVideo}>
           {videoUri ? (
             <>
-              <Feather name="check-circle" size={48} color={colors.primary} />
-              <Text style={styles.pickedText}>Video đã chọn ({Math.round(duration)}s)</Text>
+              {thumbnailUri ? (
+                <Image source={{ uri: thumbnailUri }} style={styles.thumbnailPreview} />
+              ) : (
+                <Feather name="check-circle" size={48} color={colors.primary} />
+              )}
+              <View style={styles.overlayPickedText}>
+                <Text style={styles.pickedTextOnThumbnail}>Video đã chọn ({Math.round(duration)}s)</Text>
+              </View>
             </>
           ) : (
             <>
@@ -142,15 +141,10 @@ export const CreateReelScreen = ({ navigation }: RootStackScreenProps<'CreateRee
         />
 
         <TouchableOpacity
-          style={[styles.submitBtn, submitting && styles.submitDisabled]}
+          style={styles.submitBtn}
           onPress={handleSubmit}
-          disabled={submitting}
         >
-          {submitting ? (
-            <ActivityIndicator color={colors.onPrimary} />
-          ) : (
-            <Text style={styles.submitText}>Đăng Reel</Text>
-          )}
+          <Text style={styles.submitText}>Đăng Reel</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -179,6 +173,26 @@ function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
     borderWidth: 2,
     borderStyle: 'dashed',
     borderColor: colors.primary,
+    overflow: 'hidden',
+  },
+  thumbnailPreview: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  overlayPickedText: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingVertical: spacing.xs,
+    alignItems: 'center',
+  },
+  pickedTextOnThumbnail: {
+    ...typography.bodyMd,
+    color: '#ffffff',
+    fontWeight: 'bold',
   },
   pickedText: { ...typography.bodyMd, color: colors.onSurfaceVariant, marginTop: spacing.sm },
   captionInput: {

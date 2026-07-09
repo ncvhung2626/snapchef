@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useUploadQueue } from '../lib/uploadQueue';
 import { useTheme } from '../theme/ThemeContext';
@@ -22,67 +22,67 @@ export function UploadProgressBanner() {
   const current = active[0];
 
   return (
-    <Modal transparent animationType="fade" visible={true}>
-      <View style={styles.overlay}>
-        <View style={styles.dialog}>
-          {current ? (
-            <View style={styles.content}>
-              <View style={styles.iconContainer}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <View style={styles.absoluteCenter}>
-                  <Feather name="upload-cloud" size={20} color={colors.primary} />
-                </View>
+    <View style={styles.overlay} pointerEvents="box-none">
+      <View style={styles.dialog}>
+        {current ? (
+          <View style={styles.content}>
+            <View style={styles.iconContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <View style={styles.absoluteCenter}>
+                <Feather name="upload-cloud" size={20} color={colors.primary} />
               </View>
-              
-              <Text style={styles.title}>
-                {current.status === 'uploading' ? 'Đang tải lên bài viết...' : 'Chờ tải lên...'}
-              </Text>
-              <Text style={styles.subtitle}>Vui lòng đợi trong giây lát</Text>
+            </View>
+            
+            <Text style={styles.title}>
+              {current.status === 'uploading' ? 'Đang tải lên bài viết...' : 'Chờ tải lên...'}
+            </Text>
+            <Text style={styles.subtitle}>Vui lòng đợi trong giây lát</Text>
 
-              <View style={styles.progressContainer}>
-                <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: `${current.progress}%` }]} />
-                </View>
-                <Text style={styles.progressText}>{Math.round(current.progress)}%</Text>
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${current.progress}%` }]} />
               </View>
+              <Text style={styles.progressText}>{Math.round(current.progress)}%</Text>
+            </View>
 
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => cancel(current.id)}>
-                <Text style={styles.cancelText}>Hủy</Text>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => cancel(current.id)}>
+              <Text style={styles.cancelText}>Hủy</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {failed.map((t) => (
+          <View key={t.id} style={styles.failedContent}>
+            <Feather name="alert-circle" size={48} color={colors.error} style={{ marginBottom: spacing.sm }} />
+            <Text style={styles.title}>Tải lên thất bại</Text>
+            <Text style={styles.errorText} numberOfLines={2}>
+              {t.error ?? 'Đã có lỗi xảy ra trong quá trình tải.'}
+            </Text>
+            <View style={styles.actionRow}>
+              <TouchableOpacity style={[styles.actionBtn, styles.btnOutline]} onPress={() => cancel(t.id)}>
+                <Text style={styles.cancelText}>Hủy bỏ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionBtn, styles.btnPrimary]} onPress={() => retry(t.id)}>
+                <Text style={styles.btnPrimaryText}>Thử lại</Text>
               </TouchableOpacity>
             </View>
-          ) : null}
-
-          {failed.map((t) => (
-            <View key={t.id} style={styles.failedContent}>
-              <Feather name="alert-circle" size={48} color={colors.error} style={{ marginBottom: spacing.sm }} />
-              <Text style={styles.title}>Tải lên thất bại</Text>
-              <Text style={styles.errorText} numberOfLines={2}>
-                {t.error ?? 'Đã có lỗi xảy ra trong quá trình tải.'}
-              </Text>
-              <View style={styles.actionRow}>
-                <TouchableOpacity style={[styles.actionBtn, styles.btnOutline]} onPress={() => cancel(t.id)}>
-                  <Text style={styles.cancelText}>Hủy bỏ</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, styles.btnPrimary]} onPress={() => retry(t.id)}>
-                  <Text style={styles.btnPrimaryText}>Thử lại</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-        </View>
+          </View>
+        ))}
       </View>
-    </Modal>
+    </View>
   );
 }
 
 function createStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
     overlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'center',
+      position: 'absolute',
+      bottom: 90, // float above bottom tabs
+      left: spacing.md,
+      right: spacing.md,
+      justifyContent: 'flex-end',
       alignItems: 'center',
-      padding: spacing.xl,
+      zIndex: 9999,
     },
     dialog: {
       backgroundColor: colors.surface,
