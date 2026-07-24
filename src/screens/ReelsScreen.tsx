@@ -87,7 +87,7 @@ const ReelVideo = ({ uri, isActive, reelId }: { uri: string; isActive: boolean; 
   );
 };
 
-const ReelItem = ({ item, itemHeight, isActive, onLike, onComment, onShare, onSave, onFollow, following }: ReelItemProps) => {
+const ReelItem = React.memo(({ item, itemHeight, isActive, onLike, onComment, onShare, onSave, onFollow, following }: ReelItemProps) => {
   const { colors } = useTheme();
   const [saved, setSaved] = useState(item.savedByMe);
   const [expanded, setExpanded] = useState(false);
@@ -173,7 +173,7 @@ const ReelItem = ({ item, itemHeight, isActive, onLike, onComment, onShare, onSa
       </View>
     </View>
   );
-};
+});
 
 export const ReelsScreen = ({ navigation }: RootStackScreenProps<'Reels'>) => {
   const insets = useSafeAreaInsets();
@@ -267,6 +267,26 @@ export const ReelsScreen = ({ navigation }: RootStackScreenProps<'Reels'>) => {
     }
   }).current;
 
+  const renderItem = useCallback(({ item, index }: { item: Reel; index: number }) => (
+    <ReelItem
+      item={item}
+      itemHeight={listHeight}
+      isActive={index === activeIndex}
+      onLike={() => handleLike(item)}
+      onComment={() => setCommentReel(item)}
+      onShare={() => handleShare(item)}
+      onSave={() => handleSave(item)}
+      onFollow={() => handleFollow(item)}
+      following={followingMap[item.authorId] ?? false}
+    />
+  ), [listHeight, activeIndex, handleLike, handleShare, handleSave, handleFollow, followingMap]);
+
+  const getItemLayout = useCallback((data: any, index: number) => ({
+    length: listHeight,
+    offset: listHeight * index,
+    index,
+  }), [listHeight]);
+
   if (isLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -306,19 +326,12 @@ export const ReelsScreen = ({ navigation }: RootStackScreenProps<'Reels'>) => {
       <FlatList
         data={reels}
         keyExtractor={(item) => item._id}
-        renderItem={({ item, index }) => (
-          <ReelItem
-            item={item}
-            itemHeight={listHeight}
-            isActive={index === activeIndex}
-            onLike={() => handleLike(item)}
-            onComment={() => setCommentReel(item)}
-            onShare={() => handleShare(item)}
-            onSave={() => handleSave(item)}
-            onFollow={() => handleFollow(item)}
-            following={followingMap[item.authorId] ?? false}
-          />
-        )}
+        renderItem={renderItem}
+        getItemLayout={getItemLayout}
+        initialNumToRender={3}
+        maxToRenderPerBatch={3}
+        windowSize={3}
+        removeClippedSubviews={true}
         pagingEnabled
         showsVerticalScrollIndicator={false}
         snapToInterval={listHeight}
